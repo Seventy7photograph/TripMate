@@ -1,4 +1,6 @@
 # 文件说明：数据访问仓储：route_repository。
+import hashlib
+import json
 from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
@@ -23,6 +25,7 @@ class RouteRepository:
         from_stop_id: UUID,
         to_stop_id: UUID,
         mode: RouteMode,
+        coordinate_hash: str,
         ttl_seconds: int,
     ) -> RouteLeg | None:
         if ttl_seconds <= 0:
@@ -33,6 +36,7 @@ class RouteRepository:
                 RouteLegModel.from_stop_id == from_stop_id,
                 RouteLegModel.to_stop_id == to_stop_id,
                 RouteLegModel.mode == mode,
+                RouteLegModel.coordinate_hash == coordinate_hash,
                 RouteLegModel.fetched_at
                 > datetime.now(UTC) - timedelta(seconds=ttl_seconds),
             )
@@ -47,6 +51,7 @@ class RouteRepository:
         from_stop_id: UUID,
         to_stop_id: UUID,
         mode: RouteMode,
+        coordinate_hash: str,
         route: RouteResult,
     ) -> RouteLeg:
         result = await self._session.execute(
@@ -55,6 +60,7 @@ class RouteRepository:
                 RouteLegModel.from_stop_id == from_stop_id,
                 RouteLegModel.to_stop_id == to_stop_id,
                 RouteLegModel.mode == mode,
+                RouteLegModel.coordinate_hash == coordinate_hash,
             )
         )
         model = result.scalar_one_or_none()
@@ -64,6 +70,7 @@ class RouteRepository:
                 from_stop_id=from_stop_id,
                 to_stop_id=to_stop_id,
                 mode=mode,
+                coordinate_hash=coordinate_hash,
                 distance_m=route.distance_m,
                 duration_s=route.duration_s,
                 polyline=route.polyline,
@@ -94,3 +101,33 @@ class RouteRepository:
             polyline=model.polyline,
             source=SourceMetadata.from_record(model.source),
         )
+
+
+def route_coordinate_hash(
+    *,
+    origin_longitude: float,
+    origin_latitude: float,
+    origin_coordinate_system: str,
+    destination_longitude: float,
+    destination_latitude: float,
+    destination_coordinate_system: str,
+) -> str:
+    payload = {
+        "origin": {
+            "longitude": round(origin_longitude, 6),
+            "latitude": round(origin_latitude, 6),
+            "coordinate_system": origin_coordinate_system,
+        },
+        "destination": {
+            "longitude": round(destination_longitude, 6),
+            "latitude": round(destination_latitude, 6),
+            "coordinate_system": destination_coordinate_system,
+        },
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(encoded.encode()).hexdigest()

@@ -11,7 +11,9 @@ from app.schemas.upload import UploadedAssetResponse
 from app.services.upload_service import (
     InvalidUpload,
     UnsupportedUpload,
+    UploadMalwareDetected,
     UploadNotFound,
+    UploadScannerUnavailable,
     UploadService,
     UploadTooLarge,
 )
@@ -45,6 +47,10 @@ def upload_error(exc: Exception) -> HTTPException:
         code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
     elif isinstance(exc, UploadNotFound):
         code = status.HTTP_404_NOT_FOUND
+    elif isinstance(exc, UploadScannerUnavailable):
+        code = status.HTTP_503_SERVICE_UNAVAILABLE
+    elif isinstance(exc, UploadMalwareDetected):
+        code = status.HTTP_422_UNPROCESSABLE_CONTENT
     else:
         code = status.HTTP_422_UNPROCESSABLE_CONTENT
     error_code = getattr(exc, "code", "invalid_upload_content")
@@ -66,7 +72,13 @@ async def upload_asset(
 ) -> UploadedAssetResponse:
     try:
         return await service.create(owner_id=current_user.id, upload=file)
-    except (UploadTooLarge, UnsupportedUpload, InvalidUpload) as exc:
+    except (
+        UploadTooLarge,
+        UnsupportedUpload,
+        InvalidUpload,
+        UploadMalwareDetected,
+        UploadScannerUnavailable,
+    ) as exc:
         raise upload_error(exc) from exc
 
 

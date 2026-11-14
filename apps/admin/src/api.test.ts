@@ -85,6 +85,20 @@ describe("admin API", () => {
     );
   });
 
+  it("revokes the current admin token on logout", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, { status: 204 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await adminApi.logout("token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
   it("toggles a feature with the requested state and reason", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({

@@ -18,7 +18,10 @@ from app.providers.base import (
     StaticMapRequest,
 )
 from app.repositories.itinerary_repository import ItineraryRepository
-from app.repositories.route_repository import RouteRepository
+from app.repositories.route_repository import (
+    RouteRepository,
+    route_coordinate_hash,
+)
 from app.services.place_service import create_map_provider
 from app.services.version_service import VersionService, VersionTripNotFoundError
 
@@ -105,12 +108,23 @@ class RouteService:
                 continue
 
             leg_mode = leg_modes[index]
+            coordinate_hash = route_coordinate_hash(
+                origin_longitude=origin.location.longitude,
+                origin_latitude=origin.location.latitude,
+                origin_coordinate_system=origin.location.coordinate_system,
+                destination_longitude=destination.location.longitude,
+                destination_latitude=destination.location.latitude,
+                destination_coordinate_system=(
+                    destination.location.coordinate_system
+                ),
+            )
             try:
                 cached = await self._routes.get_cached(
                     day_id=day.id,
                     from_stop_id=origin.id,
                     to_stop_id=destination.id,
                     mode=leg_mode,
+                    coordinate_hash=coordinate_hash,
                     ttl_seconds=(
                         self._settings.route_cache_ttl_seconds
                         if self._provider.name != "mock"
@@ -140,6 +154,7 @@ class RouteService:
                         from_stop_id=origin.id,
                         to_stop_id=destination.id,
                         mode=leg_mode,
+                        coordinate_hash=coordinate_hash,
                         route=route,
                     )
                 )

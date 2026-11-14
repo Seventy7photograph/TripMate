@@ -131,6 +131,7 @@ def create_weather_tool(
             forecast_base_url=settings.open_meteo_base_url,
             geocoding_base_url=settings.open_meteo_geocoding_base_url,
             timeout_seconds=settings.provider_timeout_seconds,
+            proxy_url=_proxy_url(settings),
         )
         if settings.weather_fallback_enabled
         else None
@@ -144,6 +145,7 @@ def create_weather_tool(
             base_url=settings.amap_base_url,
             timeout_seconds=settings.provider_timeout_seconds,
             max_retries=settings.provider_max_retries,
+            proxy_url=_proxy_url(settings),
         )
     else:
         if fallback is None:
@@ -156,4 +158,12 @@ def create_weather_tool(
         primary=primary,
         fallback=fallback,
         context=context,
+    )
+
+
+def _proxy_url(settings: Settings) -> str | None:
+    return (
+        settings.outbound_proxy_url.get_secret_value()
+        if settings.outbound_proxy_url is not None
+        else None
     )

@@ -97,9 +97,16 @@ async function login(email: string, password: string): Promise<void> {
   }
 }
 
-function logout(): void {
-  clearSession();
-  activePage.value = "dashboard";
+async function logout(): Promise<void> {
+  const currentToken = token.value;
+  try {
+    if (currentToken) {
+      await adminApi.logout(currentToken);
+    }
+  } finally {
+    clearSession();
+    activePage.value = "dashboard";
+  }
 }
 
 onMounted(initialize);

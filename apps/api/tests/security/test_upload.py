@@ -7,8 +7,14 @@ import httpx
 from PIL import Image
 
 from app.api.deps import get_settings
+from app.api.v1.uploads import get_upload_service
 from app.core.config import Settings
 from app.main import app
+from app.services.upload_scanner import (
+    MalwareDetectedError,
+    ScannerUnavailableError,
+)
+from app.services.upload_service import UploadService
 from tests.test_auth import auth_headers, register_user
 
 
@@ -178,3 +184,63 @@ async def test_upload_filename_is_sanitized_for_rendering(
 def test_minimal_png_fixture_is_valid() -> None:
     assert png_bytes().startswith(b"\x89PNG")
     assert base64.b64encode(png_bytes()).startswith(b"iVBOR")
+
+
+class MalwareScanner:
+    async def scan(self, data: bytes) -> None:
+        del data
+        raise MalwareDetectedError("Eicar-Test-Signature")
+
+
+class UnavailableScanner:
+    async def scan(self, data: bytes) -> None:
+        del data
+        raise ScannerUnavailableError("clamav unavailable")
+
+
+async def test_upload_rejects_malware_and_fails_closed_when_scanner_is_down(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+    settings = get_settings()
+
+    async def malware_service():
+        yield UploadService(
+            app.state.test_session,
+            settings,
+            scanner=MalwareScanner(),
+        )
+
+    app.dependency_overrides[get_upload_service] = malware_service
+    try:
+        malware = await api_client.post(
+            "/api/v1/uploads",
+            headers=auth_headers(token),
+            files={"file": ("notes.txt", b"EICAR", "text/plain")},
+        )
+    finally:
+        app.dependency_overrides.pop(get_upload_service, None)
+
+    assert malware.status_code == 422
+    assert malware.json()["detail"]["code"] == "malware_detected"
+
+    async def unavailable_service():
+        yield UploadService(
+            app.state.test_session,
+            settings,
+            scanner=UnavailableScanner(),
+        )
+
+    app.dependency_overrides[get_upload_service] = unavailable_service
+    try:
+        unavailable = await api_client.post(
+            "/api/v1/uploads",
+            headers=auth_headers(token),
+            files={"file": ("notes.txt", b"trip notes", "text/plain")},
+        )
+    finally:
+        app.dependency_overrides.pop(get_upload_service, None)
+
+    assert unavailable.status_code == 503
+    assert unavailable.json()["detail"]["code"] == "upload_scanner_unavailable"

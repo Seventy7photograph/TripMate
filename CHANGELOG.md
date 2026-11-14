@@ -2,6 +2,17 @@
 
 TripMate 使用语义化版本。格式参考 Keep a Changelog。
 
+## [Unreleased]
+
+### Fixed
+
+- 路线缓存键加入起终点坐标哈希与坐标系，地点移动后不再复用旧路线。
+- 退出登录递增用户 `token_version`，使现有访问 Token 立即失效。
+- 生产环境强制独立 `MODEL_CONFIG_ENCRYPTION_KEY`、ClamAV 和显式出站代理。
+- 上传接入 ClamAV `INSTREAM`，恶意文件阻断，scanner 故障失败关闭。
+- 备份恢复覆盖上传文件，并校验 SHA-256、文件计数与 Alembic revision。
+- Skill Manifest 增加 SHA-256 lock、CI 校验和 `CODEOWNERS`。
+
 ## [1.0.0] - 2026-11-15
 
 ### Added

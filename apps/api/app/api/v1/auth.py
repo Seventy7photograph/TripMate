@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import AuthServiceDep, CurrentUserDep
+from app.api.deps import AuthServiceDep, BearerTokenDep, CurrentUserDep
 from app.domain.user import ProfileChanges, User
 from app.schemas.auth import (
     LoginRequest,
@@ -74,6 +74,15 @@ async def login(payload: LoginRequest, service: AuthServiceDep) -> TokenResponse
 @auth_router.get("/me", response_model=UserResponse)
 async def me(current_user: CurrentUserDep) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    _: CurrentUserDep,
+    token: BearerTokenDep,
+    service: AuthServiceDep,
+) -> None:
+    await service.revoke_token(token)
 
 
 @users_router.patch("/me", response_model=UserResponse)

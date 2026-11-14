@@ -2,6 +2,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,6 +64,10 @@ class Settings(BaseSettings):
     max_image_pixels: int = Field(default=20_000_000, ge=1_000)
     max_image_dimension: int = Field(default=1_600, ge=256, le=4_096)
     upload_ttl_hours: int = Field(default=24, ge=1, le=720)
+    clamav_host: str | None = None
+    clamav_port: int = Field(default=3_310, ge=1, le=65_535)
+    clamav_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    outbound_proxy_url: SecretStr | None = None
     rate_limit_enabled: bool = True
     rate_limit_upload_per_minute: int = Field(default=6, ge=1, le=120)
     rate_limit_brief_parse_per_minute: int = Field(default=12, ge=1, le=240)
@@ -127,6 +132,42 @@ class Settings(BaseSettings):
             raise ValueError("PROVIDER_PROFILE must be live in production")
         if self.app_env == "production" and self.effective_map_provider_profile != "live":
             raise ValueError("MAP_PROVIDER_PROFILE must be live in production")
+        if self.app_env == "production":
+            encryption_key = (
+                None
+                if self.model_config_encryption_key is None
+                else self.model_config_encryption_key.get_secret_value()
+            )
+            if encryption_key is None or len(encryption_key) < 32:
+                raise ValueError(
+                    "MODEL_CONFIG_ENCRYPTION_KEY must be at least 32 characters "
+                    "in production"
+                )
+            if encryption_key == secret:
+                raise ValueError(
+                    "MODEL_CONFIG_ENCRYPTION_KEY must differ from JWT_SECRET"
+                )
+            if self.clamav_host is None or not self.clamav_host.strip():
+                raise ValueError("CLAMAV_HOST is required in production")
+            proxy_url = (
+                None
+                if self.outbound_proxy_url is None
+                else self.outbound_proxy_url.get_secret_value()
+            )
+            parsed_proxy = (
+                None if proxy_url is None else urlparse(proxy_url.strip())
+            )
+            if (
+                parsed_proxy is None
+                or parsed_proxy.scheme not in {"http", "https"}
+                or not parsed_proxy.hostname
+                or parsed_proxy.username is not None
+                or parsed_proxy.password is not None
+            ):
+                raise ValueError(
+                    "OUTBOUND_PROXY_URL must be an HTTP(S) proxy URL "
+                    "without credentials in production"
+                )
         return self
 
 

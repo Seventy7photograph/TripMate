@@ -32,6 +32,65 @@ def test_production_rejects_mock_provider_profiles() -> None:
             jwt_secret="x" * 64,
         )
 
+
+def test_production_requires_independent_model_encryption_key() -> None:
+    with pytest.raises(
+        ValueError,
+        match="MODEL_CONFIG_ENCRYPTION_KEY",
+    ):
+        Settings(
+            app_env="production",
+            provider_profile="live",
+            map_provider_profile="live",
+            jwt_secret="j" * 64,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="MODEL_CONFIG_ENCRYPTION_KEY",
+    ):
+        Settings(
+            app_env="production",
+            provider_profile="live",
+            map_provider_profile="live",
+            jwt_secret="j" * 64,
+            model_config_encryption_key="j" * 64,
+        )
+
+    settings = Settings(
+        app_env="production",
+        provider_profile="live",
+        map_provider_profile="live",
+        jwt_secret="j" * 64,
+        model_config_encryption_key="e" * 64,
+        clamav_host="clamav",
+        outbound_proxy_url="http://egress-proxy:3128",
+    )
+    assert settings.model_config_encryption_key is not None
+
+
+def test_production_requires_malware_scanner() -> None:
+    with pytest.raises(ValueError, match="CLAMAV_HOST"):
+        Settings(
+            app_env="production",
+            provider_profile="live",
+            map_provider_profile="live",
+            jwt_secret="j" * 64,
+            model_config_encryption_key="e" * 64,
+        )
+
+
+def test_production_requires_explicit_outbound_proxy() -> None:
+    with pytest.raises(ValueError, match="OUTBOUND_PROXY_URL"):
+        Settings(
+            app_env="production",
+            provider_profile="live",
+            map_provider_profile="live",
+            jwt_secret="j" * 64,
+            model_config_encryption_key="e" * 64,
+            clamav_host="clamav",
+        )
+
     with pytest.raises(ValueError, match="MAP_PROVIDER_PROFILE must be live"):
         Settings(
             app_env="production",

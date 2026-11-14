@@ -122,3 +122,22 @@ async def test_missing_token_is_rejected(api_client: httpx.AsyncClient) -> None:
     response = await api_client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
+
+
+async def test_logout_revokes_access_token_immediately(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+
+    logout = await api_client.post(
+        "/api/v1/auth/logout",
+        headers=auth_headers(token),
+    )
+
+    assert logout.status_code == 204, logout.text
+    me = await api_client.get(
+        "/api/v1/auth/me",
+        headers=auth_headers(token),
+    )
+    assert me.status_code == 401

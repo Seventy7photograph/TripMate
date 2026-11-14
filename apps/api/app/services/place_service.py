@@ -52,6 +52,15 @@ def create_map_provider(settings: Settings) -> MapProvider:
         base_url=settings.amap_base_url,
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
+        proxy_url=_proxy_url(settings),
+    )
+
+
+def _proxy_url(settings: Settings) -> str | None:
+    return (
+        settings.outbound_proxy_url.get_secret_value()
+        if settings.outbound_proxy_url is not None
+        else None
     )
 
 

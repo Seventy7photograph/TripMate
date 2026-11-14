@@ -38,6 +38,7 @@ class AmapMapProvider:
         timeout_seconds: float = 5,
         max_retries: int = 2,
         retry_delay_seconds: float = 0.2,
+        proxy_url: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if not key.strip():
@@ -47,7 +48,12 @@ class AmapMapProvider:
         self._timeout_seconds = timeout_seconds
         self._max_retries = max_retries
         self._retry_delay_seconds = retry_delay_seconds
-        self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
+        self._client = client or httpx.AsyncClient(
+            timeout=timeout_seconds,
+            proxy=proxy_url,
+            follow_redirects=False,
+            trust_env=False,
+        )
         self._owns_client = client is None
 
     async def close(self) -> None:

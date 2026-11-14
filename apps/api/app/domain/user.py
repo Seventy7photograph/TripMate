@@ -17,6 +17,7 @@ class User:
     currency: str
     language: str
     role: UserRole
+    token_version: int
     created_at: datetime
     updated_at: datetime
 

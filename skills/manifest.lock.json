@@ -1,0 +1,17 @@
+{
+  "algorithm": "sha256",
+  "manifests": {
+    "attachment-understanding/skill.yaml": "738fbabcd4c5ac2ad6bb5147f0ff064585dc609b8c5615dbc0246b9f06c66d48",
+    "budget-optimization/skill.yaml": "0c07335bec4715a769e88c062ee3ae52c6006f7b7b832d8b1fee40fd8b698af3",
+    "destination-research/skill.yaml": "66e5b552f776f5ded7d567d3a05e0df7bdd2a185998c5f74cd0aa42d2237af7d",
+    "evidence-verification/skill.yaml": "1607b25d16e0c859154267c99377c308cf43f530bba4019af36e99b3d98ce098",
+    "food-planning/skill.yaml": "480123fe0b7167eba16bcec3bf1d7a0b1d490f7db932aa0c6b7f3accd1e27222",
+    "lodging-area-selection/skill.yaml": "a1fa1b54de00c12c45729cbede8067344504dd05efaa542088a42aa3d88dad24",
+    "route-optimization/skill.yaml": "47c233c89bd9fa66eb0dbc6e20549db73d24c685001b6c949be1bc074c1e1c63",
+    "safety-briefing/skill.yaml": "817b6da5dd6b757a9b3eaec9cd4dc6bb5ddb826453e2bee41d85c289a56406cb",
+    "social-copywriting/skill.yaml": "77cedbe452e8bda717f45eda50231023ef0662c88d5e72bc8e9e84df3af5416b",
+    "travel-memory/skill.yaml": "7f42b53b2169cc0afa137b61efbaa7153a9b2744d9fce124372eba2757898576",
+    "trip-intent-routing/skill.yaml": "fd2f2d1f2a0cb9bd484e4d6055e7285c1917323a1c4acd48cbca4ff06ea4b611",
+    "weather-and-clothing/skill.yaml": "4cbe591989226be79454c0feaa2f4e4a0e5ebdeee8719220a8875b6f7424eb4e"
+  }
+}

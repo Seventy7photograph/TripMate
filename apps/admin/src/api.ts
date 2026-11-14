@@ -74,6 +74,14 @@ export const adminApi = {
     return request<AdminUser>("/api/v1/auth/me", {}, token);
   },
 
+  logout(token: string): Promise<unknown> {
+    return request<unknown>(
+      "/api/v1/auth/logout",
+      { method: "POST" },
+      token,
+    );
+  },
+
   agentRuns(
     token: string,
     filters: {

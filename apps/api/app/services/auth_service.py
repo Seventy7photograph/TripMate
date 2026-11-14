@@ -92,6 +92,7 @@ class AuthService:
         token = jwt.encode(
             {
                 "sub": str(user.id),
+                "ver": user.token_version,
                 "iss": self._settings.jwt_issuer,
                 "iat": now,
                 "exp": now + timedelta(seconds=expires_in),
@@ -103,22 +104,25 @@ class AuthService:
 
     async def get_user_from_token(self, token: str) -> User:
         try:
-            # 显式要求全部声明，避免不完整 Token 通过校验。
-            payload = jwt.decode(
-                token,
-                self._settings.jwt_secret.get_secret_value(),
-                algorithms=[self._settings.jwt_algorithm],
-                issuer=self._settings.jwt_issuer,
-                options={"require": ["sub", "iat", "exp", "iss"]},
-            )
+            payload = self._decode_token(token)
             user_id = UUID(str(payload["sub"]))
         except (jwt.PyJWTError, ValueError, KeyError, TypeError) as exc:
             raise InvalidTokenError from exc
 
         user = await self._users.get_by_id(user_id)
-        if user is None:
+        if user is None or user.token_version != int(str(payload["ver"])):
             raise InvalidTokenError
         return user
+
+    async def revoke_token(self, token: str) -> None:
+        try:
+            payload = self._decode_token(token)
+            user_id = UUID(str(payload["sub"]))
+        except (jwt.PyJWTError, ValueError, KeyError, TypeError) as exc:
+            raise InvalidTokenError from exc
+        if not await self._users.revoke_tokens(user_id):
+            raise InvalidTokenError
+        await self._session.commit()
 
     async def update_profile(
         self,
@@ -136,3 +140,12 @@ class AuthService:
         if requested_id != current_user.id:
             raise UserNotFoundError
         return current_user
+
+    def _decode_token(self, token: str) -> dict[str, object]:
+        return jwt.decode(
+            token,
+            self._settings.jwt_secret.get_secret_value(),
+            algorithms=[self._settings.jwt_algorithm],
+            issuer=self._settings.jwt_issuer,
+            options={"require": ["sub", "ver", "iat", "exp", "iss"]},
+        )

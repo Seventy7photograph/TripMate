@@ -41,12 +41,18 @@ class OpenMeteoWeatherProvider:
         forecast_base_url: str = "https://api.open-meteo.com",
         geocoding_base_url: str = "https://geocoding-api.open-meteo.com",
         timeout_seconds: float = 8,
+        proxy_url: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._forecast_base_url = forecast_base_url.rstrip("/")
         self._geocoding_base_url = geocoding_base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
-        self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
+        self._client = client or httpx.AsyncClient(
+            timeout=timeout_seconds,
+            proxy=proxy_url,
+            follow_redirects=False,
+            trust_env=False,
+        )
         self._owns_client = client is None
 
     async def close(self) -> None:
@@ -144,11 +150,17 @@ class OpenMeteoElevationProvider:
         *,
         base_url: str = "https://api.open-meteo.com",
         timeout_seconds: float = 8,
+        proxy_url: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
-        self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
+        self._client = client or httpx.AsyncClient(
+            timeout=timeout_seconds,
+            proxy=proxy_url,
+            follow_redirects=False,
+            trust_env=False,
+        )
         self._owns_client = client is None
 
     async def close(self) -> None:

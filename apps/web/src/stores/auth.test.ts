@@ -82,9 +82,16 @@ describe("auth store", () => {
       window.sessionStorage.getItem("tripmate.active-conversation-id"),
     ).toBeNull();
 
-    store.logout();
+    await store.logout();
     expect(store.isAuthenticated).toBe(false);
     expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/v1/auth/logout",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+      }),
+    );
   });
 
   it("clears an expired stored token", async () => {

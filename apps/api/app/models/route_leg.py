@@ -13,11 +13,12 @@ class RouteLeg(Base):
     __tablename__ = "route_legs"
     __table_args__ = (
         Index(
-            "uq_route_legs_day_pair_mode",
+            "uq_route_legs_day_pair_mode_coordinates",
             "day_id",
             "from_stop_id",
             "to_stop_id",
             "mode",
+            "coordinate_hash",
             unique=True,
         ),
         Index("ix_route_legs_day", "day_id"),
@@ -40,6 +41,7 @@ class RouteLeg(Base):
         nullable=False,
     )
     mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    coordinate_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     distance_m: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_s: Mapped[int] = mapped_column(Integer, nullable=False)
     polyline: Mapped[str | None] = mapped_column(Text)

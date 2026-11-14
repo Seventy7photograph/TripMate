@@ -34,6 +34,7 @@ class OpenAICompatibleLlmProvider:
         model: str,
         timeout_seconds: float,
         max_retries: int,
+        proxy_url: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._api_key = api_key
@@ -42,11 +43,17 @@ class OpenAICompatibleLlmProvider:
         self._timeout_seconds = timeout_seconds
         self._max_retries = max_retries
         self._client = client
+        self._proxy_url = proxy_url
 
     async def generate(self, request: LlmRequest) -> LlmResponse:
         if self._client is not None:
             return await self._generate_with_client(self._client, request)
-        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout_seconds,
+            proxy=self._proxy_url,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
             return await self._generate_with_client(client, request)
 
     async def generate_with_tools(
@@ -55,7 +62,12 @@ class OpenAICompatibleLlmProvider:
     ) -> ToolCallingResponse:
         if self._client is not None:
             return await self._generate_tools_with_client(self._client, request)
-        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout_seconds,
+            proxy=self._proxy_url,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
             return await self._generate_tools_with_client(client, request)
 
     async def _generate_tools_with_client(

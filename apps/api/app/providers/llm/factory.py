@@ -24,4 +24,9 @@ def build_llm_provider(settings: Settings) -> StructuredLlmProvider:
         model=settings.llm_model,
         timeout_seconds=settings.llm_timeout_seconds,
         max_retries=settings.llm_max_retries,
+        proxy_url=(
+            settings.outbound_proxy_url.get_secret_value()
+            if settings.outbound_proxy_url is not None
+            else None
+        ),
     )

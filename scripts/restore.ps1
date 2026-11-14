@@ -4,12 +4,27 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$BackupFile,
     [string]$RestoreDatabase = "tripmate_restore_check",
+    [string]$UploadArchive = "",
+    [string]$UploadDirectory = "",
     [switch]$KeepDatabase
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $backup = (Resolve-Path -LiteralPath $BackupFile).Path
+$manifestPath = "$backup.manifest.json"
+$manifest = if (Test-Path -LiteralPath $manifestPath) {
+    Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+} else {
+    $null
+}
+if (-not $UploadDirectory) {
+    $UploadDirectory = if ($env:UPLOAD_DIR) {
+        $env:UPLOAD_DIR
+    } else {
+        Join-Path $repoRoot "output\uploads"
+    }
+}
 $postgresUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "tripmate" }
 $postgresDb = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "tripmate" }
 
@@ -88,10 +103,34 @@ try {
         throw "Restored migration revision does not match source"
     }
 
+    $restoredUploadFiles = 0
+    $uploadManifest = if ($manifest -and $manifest.uploads) { $manifest.uploads } else { $null }
+    if ($uploadManifest -and $uploadManifest.file_count -gt 0) {
+        if (-not $UploadArchive) {
+            $UploadArchive = Join-Path (Split-Path -Parent $backup) $uploadManifest.file
+        }
+        $resolvedUploadArchive = (Resolve-Path -LiteralPath $UploadArchive).Path
+        $actualHash = (Get-FileHash -LiteralPath $resolvedUploadArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne $uploadManifest.sha256) {
+            throw "Upload archive SHA-256 does not match backup manifest"
+        }
+        New-Item -ItemType Directory -Force -Path $UploadDirectory | Out-Null
+        & tar.exe -xzf $resolvedUploadArchive -C $UploadDirectory
+        if ($LASTEXITCODE -ne 0) {
+            throw "upload archive restore failed with exit code $LASTEXITCODE"
+        }
+        $restoredUploadFiles = (Get-ChildItem -LiteralPath $UploadDirectory -File -Recurse).Count
+        if ($restoredUploadFiles -ne $uploadManifest.file_count) {
+            throw "Restored upload file count does not match backup manifest"
+        }
+    }
+
     [pscustomobject]@{
         restored_database = $RestoreDatabase
         revision = $restoredRevision
         counts = $restoredCounts
+        upload_files = $restoredUploadFiles
+        upload_directory = $UploadDirectory
         kept = [bool]$KeepDatabase
     } | ConvertTo-Json -Compress -Depth 4
 }

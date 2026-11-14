@@ -88,6 +88,7 @@ TripMate 的设计原则是：
 - JWT 鉴权、Argon2 密码哈希、管理员角色校验、Redis 限流。
 - 外部 URL 阻断私网、回环、链路本地地址和危险重定向。
 - 上传文件校验类型、大小、数量、文件头和图片结构。
+- 生产上传通过 ClamAV `INSTREAM` 扫描；扫描不可用时失败关闭。
 - 用户文本、附件、Tool 结果和 MCP 内容都按不可信数据处理。
 - Tool 调用有 Schema、超时、调用预算、deadline 和审计。
 - MCP Gateway 只接受服务端固定 endpoint，不支持用户 URL 或 Shell 执行。
@@ -274,6 +275,8 @@ docker compose --profile app down
 | `MODEL_CONFIG_ENCRYPTION_KEY` | 在线模型密钥加密密钥 |
 | `ALLOW_PRIVATE_PROVIDER_URLS` | 生产环境应保持 `false` |
 | `PROVIDER_ALLOWED_HOSTS` | 可选的 Provider host allowlist |
+| `CLAMAV_HOST` / `CLAMAV_PORT` | 生产上传恶意文件扫描 |
+| `OUTBOUND_PROXY_URL` | 生产 Provider 的受控出站代理，代理需固定 DNS 并限制重定向 |
 
 ### MCP Gateway
 

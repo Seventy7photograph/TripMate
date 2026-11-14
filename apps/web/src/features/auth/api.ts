@@ -28,6 +28,14 @@ export const authApi = {
     return request<UserProfile>("/api/v1/auth/me", {}, token);
   },
 
+  logout(token: string): Promise<unknown> {
+    return request<unknown>(
+      "/api/v1/auth/logout",
+      { method: "POST" },
+      token,
+    );
+  },
+
   updateProfile(token: string, input: ProfileUpdate): Promise<UserProfile> {
     return request<UserProfile>(
       "/api/v1/users/me",

@@ -126,9 +126,16 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
-  function logout(): void {
-    clearSession();
-    initialized.value = true;
+  async function logout(): Promise<void> {
+    const currentToken = token.value;
+    try {
+      if (currentToken) {
+        await authApi.logout(currentToken);
+      }
+    } finally {
+      clearSession();
+      initialized.value = true;
+    }
   }
 
   return {

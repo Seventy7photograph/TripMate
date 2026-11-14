@@ -2,7 +2,7 @@
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.user import ProfileChanges, User, UserRole
@@ -61,6 +61,15 @@ class UserRepository:
         await self._session.refresh(model)
         return self._to_domain(model)
 
+    async def revoke_tokens(self, user_id: UUID) -> bool:
+        result = await self._session.execute(
+            update(UserModel)
+            .where(UserModel.id == user_id)
+            .values(token_version=UserModel.token_version + 1)
+            .returning(UserModel.id)
+        )
+        return result.scalar_one_or_none() is not None
+
     @staticmethod
     def _to_domain(model: UserModel) -> User:
         return User(
@@ -72,6 +81,7 @@ class UserRepository:
             currency=model.currency,
             language=model.language,
             role=cast(UserRole, model.role),
+            token_version=model.token_version,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

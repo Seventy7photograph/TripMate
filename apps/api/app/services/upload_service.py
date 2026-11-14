@@ -17,6 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.models.uploaded_asset import UploadedAsset
 from app.schemas.upload import UploadedAssetResponse
+from app.services.upload_scanner import (
+    MalwareDetectedError,
+    ScannerUnavailableError,
+    UploadScanner,
+    create_upload_scanner,
+)
 
 _IMAGE_FORMATS = {
     "JPEG": ("image/jpeg", ".jpg"),
@@ -46,6 +52,14 @@ class UploadNotFound(UploadError):
     code = "upload_not_found"
 
 
+class UploadMalwareDetected(UploadError):
+    code = "malware_detected"
+
+
+class UploadScannerUnavailable(UploadError):
+    code = "upload_scanner_unavailable"
+
+
 @dataclass(frozen=True, slots=True)
 class UploadContext:
     documents: list[tuple[str, str]]
@@ -54,10 +68,16 @@ class UploadContext:
 
 
 class UploadService:
-    def __init__(self, session: AsyncSession, settings: Settings) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        scanner: UploadScanner | None = None,
+    ) -> None:
         self._session = session
         self._settings = settings
         self._root = settings.upload_dir.resolve()
+        self._scanner = scanner or create_upload_scanner(settings)
 
     async def create(
         self,
@@ -73,6 +93,13 @@ class UploadService:
         data = await upload.read(max_read + 1)
         if len(data) > max_read:
             raise UploadTooLarge
+
+        try:
+            await self._scanner.scan(data)
+        except MalwareDetectedError as exc:
+            raise UploadMalwareDetected from exc
+        except ScannerUnavailableError as exc:
+            raise UploadScannerUnavailable from exc
 
         name = self._safe_name(upload.filename)
         # 以真实内容检测结果为准，不能只相信浏览器提供的 MIME。

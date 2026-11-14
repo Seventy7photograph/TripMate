@@ -39,7 +39,7 @@ async function save(): Promise<void> {
 }
 
 async function logout(): Promise<void> {
-  auth.logout();
+  await auth.logout();
   logoutOpen.value = false;
   await router.push("/login");
 }

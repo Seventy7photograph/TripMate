@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Index, String, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -27,6 +27,12 @@ class User(Base):
         nullable=False,
         default="user",
         server_default="user",
+    )
+    token_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -137,6 +137,11 @@ def create_altitude_tool(
         OpenMeteoElevationProvider(
             base_url=settings.open_meteo_elevation_base_url,
             timeout_seconds=settings.provider_timeout_seconds,
+            proxy_url=(
+                settings.outbound_proxy_url.get_secret_value()
+                if settings.outbound_proxy_url is not None
+                else None
+            ),
         ),
         context,
     )
