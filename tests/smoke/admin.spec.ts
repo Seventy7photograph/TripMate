@@ -5,7 +5,8 @@ import { expect, test } from "@playwright/test";
 
 test.setTimeout(90_000);
 const adminUrl =
-  process.env.E2E_ADMIN_URL ?? "http://127.0.0.1:5174";
+  process.env.E2E_ADMIN_URL ??
+  `http://127.0.0.1:${process.env.E2E_ADMIN_PORT ?? "5174"}`;
 
 test("admin can inspect operations and toggle a provider", async ({
   page,
@@ -45,6 +46,35 @@ test("admin can inspect operations and toggle a provider", async ({
       timeout: 120_000,
     },
   );
+
+  const adminLogin = await request.post(
+    "http://127.0.0.1:8010/api/v1/auth/login",
+    {
+      data: {
+        email,
+        password,
+      },
+    },
+  );
+  expect(adminLogin.ok()).toBeTruthy();
+  const session = await adminLogin.json();
+  const seededConfig = await request.patch(
+    "http://127.0.0.1:8010/api/v1/admin/model-configs/brief_parse",
+    {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      data: {
+        provider_profile: "live",
+        base_url: "https://api.deepseek.com",
+        model_name: "deepseek-flash",
+        api_key: "ci-e2e-write-only-secret",
+        timeout_seconds: 30,
+        max_retries: 2,
+      },
+    },
+  );
+  expect(seededConfig.ok()).toBeTruthy();
 
   await page.goto(adminUrl);
   await page.getByLabel("邮箱").fill(email);

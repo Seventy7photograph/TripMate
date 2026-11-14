@@ -6,7 +6,8 @@ import { expect, test } from "@playwright/test";
 
 test.setTimeout(120_000);
 const adminUrl =
-  process.env.E2E_ADMIN_URL ?? "http://127.0.0.1:5174";
+  process.env.E2E_ADMIN_URL ??
+  `http://127.0.0.1:${process.env.E2E_ADMIN_PORT ?? "5174"}`;
 
 test("admin can inspect and roll back agent skills", async ({
   page,
