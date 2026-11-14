@@ -3,6 +3,23 @@ import { expect, test, type Locator } from "@playwright/test";
 
 test.setTimeout(60_000);
 
+const transparentTile = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test.beforeEach(async ({ page }) => {
+  await page.route(
+    /^https:\/\/webrd0[1-4]\.is\.autonavi\.com\//,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "image/png",
+        body: transparentTile,
+      }),
+  );
+});
+
 function placeResultButton(addForm: Locator, name: string): Locator {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return addForm.getByRole("button", {
