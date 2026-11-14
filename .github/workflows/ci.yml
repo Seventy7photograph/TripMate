@@ -168,6 +168,33 @@ jobs:
           curl --fail --silent http://127.0.0.1:8080 >/dev/null
           curl --fail --silent http://127.0.0.1:8081 >/dev/null
 
+      - name: Verify ClamAV blocks EICAR
+        run: |
+          EMAIL="clamav-smoke-${GITHUB_RUN_ID}@example.com"
+          RESPONSE=$(curl --fail --silent --show-error \
+            -X POST http://127.0.0.1:8000/api/v1/auth/register \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"correct-horse-battery-staple\",\"display_name\":\"ClamAV Smoke\"}")
+          TOKEN=$(printf '%s' "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          printf 'X5O!P%%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/eicar.txt
+          for attempt in $(seq 1 60); do
+            STATUS=$(curl --silent --output /tmp/eicar-response.json --write-out '%{http_code}' \
+              -X POST http://127.0.0.1:8000/api/v1/uploads \
+              -H "Authorization: Bearer $TOKEN" \
+              -F 'file=@/tmp/eicar.txt;type=text/plain')
+            if [ "$STATUS" = "422" ]; then
+              grep --quiet 'malware_detected' /tmp/eicar-response.json
+              exit 0
+            fi
+            if [ "$STATUS" != "503" ]; then
+              cat /tmp/eicar-response.json
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/eicar-response.json
+          exit 1
+
       - name: Stop deployment profile
         if: always()
         run: docker compose --profile app down -v
