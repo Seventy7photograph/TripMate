@@ -1,0 +1,30 @@
+name: evidence-verification
+version: 1.0.0
+status: active
+description: Verify freshness, conflicts, and missing facts in existing evidence.
+input_schema:
+  type: object
+  properties:
+    records:
+      type: array
+      items:
+        type: object
+  required: [records]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    issues:
+      type: array
+      items:
+        type: object
+    verified_count:
+      type: integer
+  required: [issues, verified_count]
+  additionalProperties: false
+allowed_tools: []
+allowed_mcp_connectors: []
+max_tool_calls: 0
+timeout_seconds: 5
+max_tokens: 2000
+fallback: existing_itinerary_graph

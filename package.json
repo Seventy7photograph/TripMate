@@ -1,0 +1,40 @@
+{
+  "name": "tripmate",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "docker compose up -d postgres redis && pnpm db:migrate && pnpm --parallel dev",
+    "db:migrate": "pnpm --filter @tripmate/api migrate",
+    "lint": "pnpm --recursive lint && node scripts/uv.mjs run --project apps/api ruff check apps/api",
+    "check:comments": "node scripts/check-code-comments.mjs",
+    "prompts:check": "node scripts/uv.mjs run --project apps/api --directory apps/api python -m app.cli.audit_prompts",
+    "typecheck": "pnpm --recursive typecheck && node scripts/uv.mjs run --project apps/api mypy apps/api/app",
+    "test": "pnpm --recursive test && node scripts/uv.mjs run --project apps/api pytest apps/api/tests -q",
+    "test:critical": "node scripts/uv.mjs run --project apps/api pytest apps/api/tests/critical -q",
+    "e2e": "playwright test",
+    "test:performance": "pwsh -NoProfile -File scripts/performance-smoke.ps1",
+    "backup": "pwsh -NoProfile -File scripts/backup.ps1",
+    "restore:drill": "pwsh -NoProfile -File scripts/restore.ps1",
+    "rc:start": "pwsh -NoProfile -File scripts/start-local-rc.ps1",
+    "rc:stop": "pwsh -NoProfile -File scripts/stop-local-rc.ps1",
+    "build": "pnpm --recursive build",
+    "verify": "pnpm check:comments && pnpm prompts:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.0",
+    "@types/node": "^22.18.0",
+    "eslint": "10.14.0",
+    "eslint-plugin-vue": "10.12.1",
+    "globals": "17.14.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.2",
+    "vue-eslint-parser": "10.3.0"
+  }
+}

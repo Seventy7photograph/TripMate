@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+node_modules
+**/node_modules
+**/dist
+output
+test-results
+.playwright-cli
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env

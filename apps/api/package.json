@@ -1,0 +1,12 @@
+{
+  "name": "@tripmate/api",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "node ../../scripts/dev-api.mjs",
+    "migrate": "node ../../scripts/uv.mjs run --project . alembic upgrade head",
+    "promote-admin": "node ../../scripts/uv.mjs run --project . python -m app.cli.promote_admin",
+    "worker": "node ../../scripts/uv.mjs run --project . python -m app.workers.planning_worker"
+  }
+}

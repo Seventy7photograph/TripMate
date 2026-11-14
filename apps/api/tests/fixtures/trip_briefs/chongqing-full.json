@@ -1,0 +1,16 @@
+{
+  "destination": "重庆",
+  "origin": "上海",
+  "start_date": "2026-12-01",
+  "end_date": "2026-12-03",
+  "party_size": 2,
+  "budget_minor": 500000,
+  "currency": "CNY",
+  "interests": ["美食", "城市漫步", "夜景"],
+  "pace": "balanced",
+  "transport_preferences": ["公共交通", "步行"],
+  "lodging_preferences": ["解放碑"],
+  "must_visit": ["洪崖洞"],
+  "avoid": ["排队过久"],
+  "constraints": ["不吃辣"]
+}

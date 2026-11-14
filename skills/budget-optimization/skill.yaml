@@ -1,0 +1,35 @@
+name: budget-optimization
+version: 1.0.0
+status: active
+description: Calculate integer-minor-unit itinerary budgets and remaining balance.
+input_schema:
+  type: object
+  properties:
+    stop_costs_minor:
+      type: array
+      items:
+        type: integer
+        minimum: 0
+    budget_minor:
+      type: [integer, "null"]
+      minimum: 0
+  required: [stop_costs_minor, budget_minor]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    estimated_minor:
+      type: integer
+    remaining_minor:
+      type: [integer, "null"]
+    within_budget:
+      type: boolean
+  required: [estimated_minor, remaining_minor, within_budget]
+  additionalProperties: false
+allowed_tools:
+  - calculate_budget
+allowed_mcp_connectors: []
+max_tool_calls: 2
+timeout_seconds: 10
+max_tokens: 2000
+fallback: existing_itinerary_graph

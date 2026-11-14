@@ -1,0 +1,61 @@
+name: social-copywriting
+version: 1.0.0
+status: active
+description: Draft verified travel social copy without publishing or inventing facts.
+input_schema:
+  type: object
+  properties:
+    destination:
+      type: string
+    platform:
+      type: string
+      enum: [xiaohongshu, wechat_moments, weibo, generic]
+    tone:
+      type: string
+      enum: [quiet, practical, vivid]
+    confirmed_facts:
+      type: array
+      items:
+        type: string
+    trip_days:
+      type: integer
+      minimum: 1
+  required: [destination, platform, tone, confirmed_facts]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    title:
+      type: string
+    body:
+      type: string
+    hashtags:
+      type: array
+      items:
+        type: string
+    image_suggestions:
+      type: array
+      items:
+        type: string
+    evidence_links:
+      type: array
+      items:
+        type: string
+    warnings:
+      type: array
+      items:
+        type: string
+    facts_used:
+      type: array
+      items:
+        type: string
+    auto_published:
+      type: boolean
+  required: [title, body, hashtags, image_suggestions, evidence_links, warnings, facts_used, auto_published]
+  additionalProperties: false
+allowed_tools: []
+allowed_mcp_connectors: []
+max_tool_calls: 0
+timeout_seconds: 5
+max_tokens: 3000
+fallback: existing_itinerary_graph

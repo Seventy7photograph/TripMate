@@ -1,0 +1,16 @@
+{
+  "destination": "重庆",
+  "origin": "上海",
+  "start_date": "2026-12-05",
+  "end_date": "2026-12-03",
+  "party_size": 2,
+  "budget_minor": 500000,
+  "currency": "CNY",
+  "interests": ["美食"],
+  "pace": "balanced",
+  "transport_preferences": [],
+  "lodging_preferences": [],
+  "must_visit": [],
+  "avoid": [],
+  "constraints": []
+}

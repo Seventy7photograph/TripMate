@@ -1,0 +1,44 @@
+name: attachment-understanding
+version: 1.0.0
+status: active
+description: Understand owner-scoped attachments as untrusted travel data.
+input_schema:
+  type: object
+  properties:
+    asset_ids:
+      type: array
+      minItems: 1
+      maxItems: 3
+      items:
+        type: string
+  required: [asset_ids]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    facts:
+      type: array
+      items:
+        type: object
+    risk_flags:
+      type: array
+      items:
+        type: string
+    missing_fields:
+      type: array
+      items:
+        type: string
+    evidence_ids:
+      type: array
+      items:
+        type: string
+  required: [facts, risk_flags, missing_fields, evidence_ids]
+  additionalProperties: false
+allowed_tools:
+  - extract_attachment
+allowed_mcp_connectors: []
+max_tool_calls: 2
+timeout_seconds: 20
+max_tokens: 4000
+requires_evidence: true
+fallback: existing_itinerary_graph

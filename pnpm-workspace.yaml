@@ -1,0 +1,6 @@
+packages:
+  - apps/*
+allowBuilds:
+  vue-demi: true
+minimumReleaseAgeExclude:
+  - jsdom@31.0.1

@@ -1,0 +1,30 @@
+{
+  "trip_id": "fixture-trip",
+  "version": 1,
+  "days": [
+    {
+      "id": "day-1",
+      "date": "2026-12-01",
+      "theme": "抵达与城市初识",
+      "stops": [
+        {
+          "id": "day-1-stop-1",
+          "place_id": "mock-hongyadong",
+          "place_name": "洪崖洞",
+          "start_at": "2026-12-01T09:00:00",
+          "duration_minutes": 120,
+          "estimated_cost_minor": 5000,
+          "source": {
+            "provider": "mock",
+            "provider_place_id": "mock-hongyadong",
+            "source_url": null,
+            "queried_at": "2026-11-13T00:00:00Z",
+            "freshness": "mock",
+            "confidence": 1.0
+          }
+        }
+      ]
+    }
+  ],
+  "validation_summary": []
+}

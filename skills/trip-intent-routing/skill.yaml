@@ -1,0 +1,61 @@
+name: trip-intent-routing
+version: 1.0.0
+status: active
+description: Route travel requests to enabled skills without expanding permissions.
+input_schema:
+  type: object
+  properties:
+    text:
+      type: string
+    available_skills:
+      type: array
+      items:
+        type: string
+  required: [text, available_skills]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    intent:
+      type: string
+    confidence:
+      type: number
+    selected_skills:
+      type: array
+      items:
+        type: string
+    allowed_tools:
+      type: array
+      items:
+        type: string
+    allowed_mcp_connectors:
+      type: array
+      items:
+        type: string
+    missing_information:
+      type: array
+      items:
+        type: string
+    token_budget:
+      type: integer
+    tool_call_budget:
+      type: integer
+    requires_confirmation:
+      type: boolean
+  required:
+    - intent
+    - confidence
+    - selected_skills
+    - allowed_tools
+    - allowed_mcp_connectors
+    - missing_information
+    - token_budget
+    - tool_call_budget
+    - requires_confirmation
+  additionalProperties: false
+allowed_tools: []
+allowed_mcp_connectors: []
+max_tool_calls: 0
+timeout_seconds: 5
+max_tokens: 1200
+fallback: existing_itinerary_graph

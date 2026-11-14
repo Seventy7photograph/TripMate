@@ -1,0 +1,41 @@
+name: lodging-area-selection
+version: 1.0.0
+status: active
+description: Compare lodging areas and transport anchors without room inventory.
+input_schema:
+  type: object
+  properties:
+    city:
+      type: string
+    preferences:
+      type: array
+      items:
+        type: string
+    limit:
+      type: integer
+      minimum: 2
+      maximum: 3
+  required: [city]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    areas:
+      type: array
+      items:
+        type: object
+    evidence_ids:
+      type: array
+      items:
+        type: string
+  required: [areas, evidence_ids]
+  additionalProperties: false
+allowed_tools:
+  - search_places
+  - get_route_matrix
+allowed_mcp_connectors: []
+max_tool_calls: 4
+timeout_seconds: 45
+max_tokens: 4000
+requires_evidence: true
+fallback: existing_itinerary_graph
