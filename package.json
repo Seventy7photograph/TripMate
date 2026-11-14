@@ -13,7 +13,7 @@
     "db:migrate": "pnpm --filter @tripmate/api migrate",
     "lint": "pnpm --recursive lint && node scripts/uv.mjs run --project apps/api ruff check apps/api",
     "check:comments": "node scripts/check-code-comments.mjs",
-    "prompts:check": "node scripts/uv.mjs run --project apps/api --directory apps/api python -m app.cli.audit_prompts",
+    "prompts:check": "node scripts/uv.mjs run --project . --directory apps/api python -m app.cli.audit_prompts",
     "typecheck": "pnpm --recursive typecheck && node scripts/uv.mjs run --project apps/api mypy apps/api/app",
     "test": "pnpm --recursive test && node scripts/uv.mjs run --project apps/api pytest apps/api/tests -q",
     "test:critical": "node scripts/uv.mjs run --project apps/api pytest apps/api/tests/critical -q",
