@@ -115,7 +115,8 @@ jobs:
           PLANNING_WORKER_ENABLED: "false"
           RATE_LIMIT_ENABLED: "false"
         run: |
-          uv run --project apps/api uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8010 &
+          apps/api/.venv/bin/uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8010 &
+          echo $! > "$RUNNER_TEMP/tripmate-performance-api.pid"
           for attempt in $(seq 1 40); do
             if curl --fail --silent http://127.0.0.1:8010/api/v1/health >/dev/null; then
               exit 0
@@ -131,6 +132,22 @@ jobs:
           --vus 3
           --duration 5
           --output output/performance/ci.json
+
+      - name: Stop API for performance
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/tripmate-performance-api.pid" ]; then
+            API_PID=$(cat "$RUNNER_TEMP/tripmate-performance-api.pid")
+            kill "$API_PID" 2>/dev/null || true
+            for attempt in $(seq 1 10); do
+              if ! kill -0 "$API_PID" 2>/dev/null; then
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "Performance API process did not stop."
+            exit 1
+          fi
 
   deployment:
     runs-on: ubuntu-latest
