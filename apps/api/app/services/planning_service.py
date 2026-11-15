@@ -132,12 +132,7 @@ class PlanningService:
         try:
             await self._queue.enqueue(run.id)
         except Exception:
-            await self._fail_run(
-                run,
-                error_code="queue_enqueue_failed",
-                error_message="Planning queue enqueue failed",
-                estimated_cost_minor=0,
-            )
+            await self._fail_enqueue_if_unstarted(run.id)
             raise
 
         if self._queue.is_inline:
@@ -147,6 +142,17 @@ class PlanningService:
     async def run_job(self, job_id: UUID) -> AgentRunView:
         try:
             return await self._run_job(job_id)
+        except Exception as exc:
+            await self._session.rollback()
+            run = await self._session.get(AgentRun, job_id)
+            if run is not None and run.status == "running":
+                await self._fail_run(
+                    run,
+                    error_code="planning_setup_failed",
+                    error_message=str(exc)[:500] or "Planning setup failed",
+                    estimated_cost_minor=0,
+                )
+            raise
         finally:
             runtime = self._skill_runtime
             self._skill_runtime = None
@@ -250,9 +256,29 @@ class PlanningService:
             await SkillStateService(self._session).enabled_manifests(
                 skill_runtime.registry
             )
-            if skills_enabled
+            if skills_enabled and router_enabled
             else []
         )
+        skill_state_snapshot = sorted(
+            [skill.name, skill.version] for skill in available_skills
+        )
+        stored_snapshot = (
+            run.skill_route.get("skill_state_snapshot")
+            if isinstance(run.skill_route, dict)
+            else None
+        )
+        if stored_snapshot is not None and stored_snapshot != skill_state_snapshot:
+            return await self._fail_run(
+                run,
+                error_code="skill_state_changed",
+                error_message="Skill state changed since planning started",
+                estimated_cost_minor=0,
+            )
+        if stored_snapshot is None:
+            run.skill_route = {
+                "skill_state_snapshot": skill_state_snapshot,
+            }
+            await self._session.commit()
         skill_runtime.selected_manifests = {
             skill.name: skill for skill in available_skills
         }
@@ -589,11 +615,32 @@ class PlanningService:
                 sequence=len(run.events) + 1,
                 type="error",
                 status="failed",
-                message="规划依赖已由管理员关闭",
+                message=error_message,
             ).model_dump(mode="json"),
         ]
         await self._session.commit()
         return self._to_view(run)
+
+    async def _fail_enqueue_if_unstarted(self, job_id: UUID) -> None:
+        await self._session.rollback()
+        result = await self._session.execute(
+            select(AgentRun)
+            .where(AgentRun.id == job_id)
+            .with_for_update()
+        )
+        run = result.scalar_one_or_none()
+        if (
+            run is None
+            or run.status != "queued"
+            or run.started_at is not None
+        ):
+            return
+        await self._fail_run(
+            run,
+            error_code="queue_enqueue_failed",
+            error_message="Planning queue enqueue failed",
+            estimated_cost_minor=0,
+        )
 
     @staticmethod
     def _to_view(run: AgentRun) -> AgentRunView:

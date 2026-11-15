@@ -357,6 +357,83 @@ async def test_queue_failure_releases_planning_cost_reservation(
     assert run.estimated_cost_minor == 0
 
 
+async def test_router_disabled_planning_skips_fixed_skills(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+    owner_id = UUID(str(registration["user"]["id"]))
+    trip = (
+        await api_client.post(
+            "/api/v1/trips",
+            headers=auth_headers(token),
+            json=trip_payload(destination="重庆"),
+        )
+    ).json()
+    flags = FeatureFlagService(app.state.test_session)
+    await flags.toggle(
+        key="agent_skill_router_enabled",
+        enabled=False,
+        actor_id=owner_id,
+        reason="router rollback regression",
+    )
+    service = PlanningService(app.state.test_session, get_settings())
+
+    started = await service.start(
+        owner_id=owner_id,
+        trip_id=UUID(str(trip["id"])),
+        expected_version=1,
+    )
+    completed = await service.run_job(started.id)
+    run = await app.state.test_session.get(AgentRun, started.id)
+
+    assert completed.status == "completed"
+    assert run is not None
+    assert run.skills_used == []
+
+
+async def test_resume_rejects_changed_skill_state_snapshot(
+    api_client: httpx.AsyncClient,
+) -> None:
+    class RecordingQueue:
+        is_inline = False
+
+        async def enqueue(self, job_id):
+            del job_id
+
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+    owner_id = UUID(str(registration["user"]["id"]))
+    trip = (
+        await api_client.post(
+            "/api/v1/trips",
+            headers=auth_headers(token),
+            json=trip_payload(destination="重庆"),
+        )
+    ).json()
+    service = PlanningService(
+        app.state.test_session,
+        get_settings(),
+        queue=RecordingQueue(),
+    )
+    started = await service.start(
+        owner_id=owner_id,
+        trip_id=UUID(str(trip["id"])),
+        expected_version=1,
+    )
+    run = await app.state.test_session.get(AgentRun, started.id)
+    assert run is not None
+    run.skill_route = {
+        "skill_state_snapshot": [["destination-research", "0.9.0"]]
+    }
+    await app.state.test_session.commit()
+
+    failed = await service.run_job(started.id)
+
+    assert failed.status == "failed"
+    assert failed.error_code == "skill_state_changed"
+
+
 async def test_disabling_agent_skills_falls_back_without_router(
     api_client: httpx.AsyncClient,
 ) -> None:

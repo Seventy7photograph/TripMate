@@ -95,7 +95,7 @@ class McpWeatherTool:
                     f"weather:{snapshot.city}:{snapshot.date.isoformat()}"
                 ),
                 fetched_at=datetime.now(UTC),
-                confidence=0.9,
+                confidence=0.5,
                 freshness=cast(EvidenceFreshness, snapshot.freshness),
                 value={
                     "date": snapshot.date.isoformat(),

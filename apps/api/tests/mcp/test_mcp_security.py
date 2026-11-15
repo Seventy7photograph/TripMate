@@ -294,11 +294,12 @@ async def test_mcp_place_tool_rebinds_source_to_connector_identity() -> None:
 
 
 async def test_mcp_weather_tool_rejects_remote_live_claim() -> None:
+    writer = RecordingEvidenceWriter()
     context = build_context(
         allowed_tools={"get_weather"},
         allowed_connectors={"weather"},
         provider_permissions={"weather"},
-        evidence_writer=RecordingEvidenceWriter(),
+        evidence_writer=writer,
     )
     settings = Settings(
         app_env="test",
@@ -329,6 +330,7 @@ async def test_mcp_weather_tool_rejects_remote_live_claim() -> None:
     assert result.city == "重庆"  # type: ignore[attr-defined]
     assert result.date.isoformat() == "2026-12-20"  # type: ignore[attr-defined]
     assert result.freshness == "unknown"  # type: ignore[attr-defined]
+    assert writer.records[0].confidence == 0.5
 
 
 async def test_mcp_place_tool_preserves_local_fallback_provenance() -> None:

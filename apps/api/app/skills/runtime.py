@@ -82,6 +82,8 @@ class SkillRuntime:
         max_tokens: int | None = None,
     ) -> SkillExecutionResult:
         manifest = self.manifest(name)
+        if self.selected_manifests and name not in self.selected_manifests:
+            raise LookupError(f"Skill is not enabled for this run: {name}")
         handler = self.handlers.get(name)
         if handler is None:
             raise LookupError(f"Skill handler is not registered: {name}")

@@ -159,7 +159,11 @@ class BriefService:
         run.input_tokens = input_tokens
         run.output_tokens = output_tokens
         run.latency_ms = latency_ms
-        run.estimated_cost_minor = estimated_cost_minor
+        run.estimated_cost_minor = settled_cost_minor(
+            reserved=run.estimated_cost_minor,
+            reported=estimated_cost_minor,
+            provider=provider,
+        )
         run.prompt_versions = prompt_versions or []
         run.error_code = error_code
         run.error_message = "Requirement parsing failed"

@@ -190,3 +190,4 @@ async def test_timeout_returns_gateway_timeout(api_client: httpx.AsyncClient) ->
     assert run is not None
     assert run.status == "failed"
     assert run.error_code == "llm_timeout"
+    assert run.estimated_cost_minor == get_settings().brief_parse_max_cost_minor

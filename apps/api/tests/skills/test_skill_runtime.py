@@ -2,6 +2,7 @@
 from uuid import uuid4
 
 import httpx
+import pytest
 
 from app.core.config import get_settings
 from app.main import app
@@ -68,3 +69,23 @@ async def test_runtime_closes_all_owned_provider_clients(
     await runtime.close()
 
     assert closed == ["closed"]
+
+
+async def test_runtime_execute_fails_closed_when_selected_skill_missing(
+    api_client: httpx.AsyncClient,
+) -> None:
+    del api_client
+    runtime = await build_skill_runtime(
+        session=app.state.test_session,
+        settings=get_settings(),
+        owner_id=uuid4(),
+    )
+    runtime.selected_manifests = {
+        "budget-optimization": runtime.registry.get("budget-optimization")
+    }
+
+    with pytest.raises(LookupError):
+        await runtime.execute(
+            "destination-research",
+            {"query": "重庆", "city": "重庆", "limit": 3},
+        )
