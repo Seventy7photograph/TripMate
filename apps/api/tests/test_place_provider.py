@@ -1,9 +1,11 @@
 # 文件说明：后端自动化测试：test_place_provider。
 import httpx
+from sqlalchemy import select
 
 from app.api.deps import get_settings
 from app.core.config import Settings
 from app.main import app
+from app.models.provider_health import ProviderHealth
 from tests.test_auth import auth_headers, register_user
 
 
@@ -33,6 +35,13 @@ async def test_mock_place_search_is_labeled_and_hides_provider_key(
     assert payload["results"][0]["source"]["freshness"] == "mock"
     assert payload["results"][0]["location"]["coordinate_system"] == "GCJ-02"
     assert "amap" not in search.text.lower()
+    provider_health = await app.state.test_session.scalar(
+        select(ProviderHealth).where(
+            ProviderHealth.provider_key == "map_provider"
+        )
+    )
+    assert provider_health is not None
+    assert provider_health.status == "healthy"
 
     detail = await api_client.get(
         f"/api/v1/places/{payload['results'][0]['provider_place_id']}",
@@ -91,6 +100,43 @@ async def test_mock_place_search_finds_known_place_without_city(
     assert search.status_code == 200, search.text
     names = [item["name"] for item in search.json()["results"]]
     assert names == ["洪崖洞民俗风貌区"]
+
+
+async def test_place_detail_tool_endpoint_persists_evidence(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+
+    response = await api_client.get(
+        "/api/v1/places/mock-hongyadong/detail",
+        headers=auth_headers(token),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["name"] == "洪崖洞民俗风貌区"
+    assert payload["evidence_id"]
+
+
+async def test_nearby_tool_endpoint_is_production_reachable(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+
+    response = await api_client.get(
+        "/api/v1/places/nearby",
+        headers=auth_headers(token),
+        params={
+            "longitude": 106.58,
+            "latitude": 29.56,
+            "radius_m": 1000,
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "nearby_provider_unavailable"
 
 
 async def test_map_status_uses_effective_map_profile(

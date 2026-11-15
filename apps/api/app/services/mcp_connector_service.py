@@ -13,6 +13,7 @@ from app.mcp.models import McpConnectionState, McpConnectorStatus
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.mcp_connector import McpConnectorState as McpConnectorStateModel
 from app.services.feature_service import FeatureFlagService
+from app.skills.metadata import MCP_METADATA
 
 
 class McpConnectorNotFoundError(Exception):
@@ -141,6 +142,19 @@ class McpConnectorService:
         await self._session.flush()
         return self._view(connector_id, model)
 
+    async def record_fallback(
+        self,
+        connector_id: str,
+        *,
+        error_code: str,
+    ) -> McpConnectionState:
+        model = await self._get_or_create(connector_id)
+        model.status = "degraded"
+        model.last_error_code = error_code[:80]
+        model.checked_at = datetime.now(UTC)
+        await self._session.flush()
+        return self._view(connector_id, model)
+
     async def _get_or_create(self, connector_id: str) -> McpConnectorStateModel:
         model = await self._session.get(McpConnectorStateModel, connector_id)
         if model is not None:
@@ -169,12 +183,32 @@ class McpConnectorService:
     ) -> McpConnectionState:
         today = datetime.now(UTC).date()
         status = "disabled"
-        if model is not None and model.enabled:
-            status = model.status
-            if status == "disabled":
-                status = "configured"
+        if model is not None:
+            if model.enabled:
+                status = model.status
+                if status == "disabled":
+                    status = "configured"
+            elif model.status in {"healthy", "unavailable", "degraded"}:
+                status = model.status
+        metadata = MCP_METADATA.get(
+            connector_id,
+            MCP_METADATA["amap"],
+        )
+        endpoint = (
+            self._settings.mcp_amap_endpoint
+            if connector_id == "amap"
+            else self._settings.mcp_weather_endpoint
+        )
         return McpConnectionState(
             connector_id=connector_id,
+            display_name=metadata.display_name,
+            purpose=metadata.purpose,
+            boundary=metadata.boundary,
+            tools=list(metadata.tools),
+            configured=(
+                connector_id in self._settings.mcp_allowed_connector_list
+                and bool(endpoint)
+            ),
             enabled=model is not None and model.enabled,
             status=cast(McpConnectorStatus, status),
             latency_ms=0 if model is None else model.latency_ms,
@@ -198,4 +232,5 @@ class McpConnectorService:
                 else model.rate_limit_per_minute
             ),
             window_calls=0 if model is None else model.window_calls,
+            as_of=datetime.now(UTC),
         )

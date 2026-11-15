@@ -48,6 +48,7 @@ class ToolRegistry:
             tool is None
             or name not in context.allowed_tools
             or tool.spec.provider_type not in context.provider_permissions
+            or tool.spec.risk == "write"
         ):
             raise ToolNotAllowedError(name)
         return tool

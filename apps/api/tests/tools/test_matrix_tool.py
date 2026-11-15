@@ -1,9 +1,12 @@
 # 文件说明：后端自动化测试：Route Matrix Tool。
 from datetime import UTC, datetime
 
+import pytest
+
 from app.domain.location import GeoPoint
 from app.providers.base import PlaceResult, fresh_source
 from app.tools.matrix_tools import MatrixTool
+from app.tools.registry import ToolNotAllowedError
 from app.tools.route_tools import RouteTool
 from tests.tools.external_fact_helpers import evidence_context
 
@@ -99,3 +102,18 @@ async def test_matrix_tool_reports_missing_coordinates_without_fake_route() -> N
     assert result.pairs[0].status == "route_unavailable"
     assert "missing-coordinate" in result.missing_place_ids
     assert context.runner.call_count == 0
+
+
+async def test_matrix_tool_requires_explicit_route_tool_permission() -> None:
+    context, _ = evidence_context(
+        allowed_tools={"get_route_matrix"},
+        provider_permissions={"map"},
+    )
+    tool = MatrixTool(
+        FakePlaceResolver(),
+        RouteTool(CountingMatrixProvider(), context),
+        context,
+    )
+
+    with pytest.raises(ToolNotAllowedError):
+        await tool.get_route_matrix(["a", "b"], "walking")

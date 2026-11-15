@@ -37,6 +37,7 @@ class ConversationView:
     title: str
     messages: list[ConversationMessage]
     requirement_history: list[str]
+    planning_draft: dict[str, object]
     trip_id: UUID | None
     version: int
     message_count: int
@@ -65,6 +66,7 @@ class ConversationService:
             title=self._title(payload.title, payload.messages),
             messages=messages,
             requirement_history=payload.requirement_history,
+            planning_draft=payload.planning_draft.to_record(),
             version=1,
         )
         self._conversations.add(model)
@@ -95,6 +97,8 @@ class ConversationService:
         model.title = self._title(payload.title, payload.messages)
         model.messages = [message.model_dump(mode="json") for message in payload.messages]
         model.requirement_history = payload.requirement_history
+        if payload.planning_draft is not None:
+            model.planning_draft = payload.planning_draft.to_record()
         model.trip_id = payload.trip_id
         model.version += 1
         await self._session.flush()
@@ -173,6 +177,7 @@ class ConversationService:
             id=model.id,
             title=model.title,
             trip_id=model.trip_id,
+            planning_draft=dict(model.planning_draft or {}),
             version=model.version,
             message_count=len(model.messages),
             preview=cls._preview(model),
@@ -189,6 +194,7 @@ class ConversationService:
                 for message in model.messages
             ],
             requirement_history=list(model.requirement_history),
+            planning_draft=dict(model.planning_draft or {}),
             trip_id=model.trip_id,
             version=model.version,
             message_count=len(model.messages),

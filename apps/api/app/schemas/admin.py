@@ -173,6 +173,11 @@ class AdminMcpConnectorResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     connector_id: str
+    display_name: str
+    purpose: str
+    boundary: str
+    tools: list[str]
+    configured: bool
     enabled: bool
     status: ProviderDisplayStatus
     latency_ms: int
@@ -182,6 +187,7 @@ class AdminMcpConnectorResponse(BaseModel):
     daily_quota: int
     rate_limit_per_minute: int
     window_calls: int
+    as_of: datetime | None
 
 
 class AdminMcpConnectorListResponse(BaseModel):

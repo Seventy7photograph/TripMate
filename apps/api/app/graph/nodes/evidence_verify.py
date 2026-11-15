@@ -1,15 +1,20 @@
 # 文件说明：LangGraph 节点：evidence_verify。
+from typing import Literal
+
 from app.evidence.models import EvidenceRecord
 from app.graph.runtime import GraphRuntime
 from app.graph.state import TravelGraphState
-from app.schemas.ai import ItineraryDraftContract
+from app.schemas.ai import ItineraryDraftContract, ValidationIssueContract
 from app.services.evidence_validation_service import EvidenceValidationService
+from app.skills.production import EvidenceVerificationOutput
+from app.skills.runtime import SkillRuntime
 
 
 async def evidence_verify_node(
     state: TravelGraphState,
     *,
     graph_runtime: GraphRuntime,
+    skill_runtime: SkillRuntime | None = None,
 ) -> dict[str, object]:
     if state.get("status") != "completed" or state.get("draft") is None:
         return {"events": graph_runtime.event_dicts()}
@@ -24,7 +29,52 @@ async def evidence_verify_node(
         for item in state.get("evidence_records", [])
     ]
     report = EvidenceValidationService().validate(draft, records=records)
-    validation_issues = report.as_validation_issues()
+    skills_used = [dict(item) for item in state.get("skills_used", [])]
+    skill_validation_issues: list[ValidationIssueContract] = []
+    if skill_runtime is not None:
+        try:
+            evidence_result = await skill_runtime.execute(
+                "evidence-verification",
+                {
+                    "records": [
+                        record.model_dump(mode="json")
+                        for record in records
+                    ],
+                },
+            )
+            skills_used.append(
+                {
+                    "name": evidence_result.skill_name,
+                    "version": evidence_result.version,
+                    "status": evidence_result.status,
+                }
+            )
+            verification = EvidenceVerificationOutput.model_validate(
+                evidence_result.output
+            )
+            skill_validation_issues.extend(
+                ValidationIssueContract(
+                    code=_verification_issue_code(issue.code),
+                    severity="warning",
+                    path=issue.path,
+                    message=issue.message,
+                )
+                for issue in verification.issues
+            )
+        except Exception as exc:
+            graph_runtime.emit(
+                "validation",
+                stage="evidence_skill",
+                status="warning",
+                message="Evidence Verification Skill 执行失败，保留规则校验结果",
+                payload={"error": type(exc).__name__},
+            )
+    validation_issues = _deduplicate_issues(
+        [
+            *report.as_validation_issues(),
+            *skill_validation_issues,
+        ]
+    )
     merged_issues = [
         *draft.validation_summary,
         *validation_issues,
@@ -61,5 +111,43 @@ async def evidence_verify_node(
             issue.model_dump(mode="json")
             for issue in report.issues
         ],
+        "skills_used": skills_used,
         "events": graph_runtime.event_dicts(),
     }
+
+
+def _deduplicate_issues(
+    issues: list[ValidationIssueContract],
+) -> list[ValidationIssueContract]:
+    unique = {
+        (issue.code, issue.path, issue.message): issue
+        for issue in issues
+    }
+    return list(unique.values())
+
+
+def _verification_issue_code(
+    code: str,
+) -> Literal[
+    "evidence_missing",
+    "evidence_stale",
+    "evidence_conflict",
+    "unsupported_claim",
+    "invalid_schema",
+]:
+    mapping: dict[
+        str,
+        Literal[
+            "evidence_missing",
+            "evidence_stale",
+            "evidence_conflict",
+            "unsupported_claim",
+            "invalid_schema",
+        ],
+    ] = {
+        "missing": "evidence_missing",
+        "stale": "evidence_stale",
+        "conflict": "evidence_conflict",
+        "unsupported_claim": "unsupported_claim",
+    }
+    return mapping.get(code, "invalid_schema")

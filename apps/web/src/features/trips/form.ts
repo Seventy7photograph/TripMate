@@ -1,5 +1,13 @@
 // 文件说明：前端功能模块：form。
-import type { TripBrief } from "./types";
+import type { TransportStrategy, TripBrief } from "./types";
+
+function emptyTransportStrategy(): TransportStrategy {
+  return {
+    strategy: "unspecified",
+    segments: [],
+    constraints: [],
+  };
+}
 
 export interface TripBriefFormInput {
   destination: string;
@@ -12,6 +20,7 @@ export interface TripBriefFormInput {
   interests: string;
   pace: "relaxed" | "balanced" | "intensive";
   transportPreferences: string;
+  transportStrategy: TransportStrategy;
   lodgingPreferences: string;
   mustVisit: string;
   avoid: string;
@@ -32,6 +41,7 @@ export function emptyTripBriefForm(): TripBriefFormInput {
     interests: "",
     pace: "balanced",
     transportPreferences: "",
+    transportStrategy: emptyTransportStrategy(),
     lodgingPreferences: "",
     mustVisit: "",
     avoid: "",
@@ -60,6 +70,8 @@ export function tripBriefToForm(
     pace: brief.pace ?? empty.pace,
     transportPreferences:
       brief.transport_preferences?.join(", ") ?? empty.transportPreferences,
+    transportStrategy:
+      brief.transport_strategy ?? empty.transportStrategy,
     lodgingPreferences:
       brief.lodging_preferences?.join(", ") ?? empty.lodgingPreferences,
     mustVisit: brief.must_visit?.join(", ") ?? empty.mustVisit,
@@ -104,6 +116,7 @@ export function toTripBriefInput(form: TripBriefFormInput): TripBriefInput {
     interests: splitList(form.interests),
     pace: form.pace,
     transport_preferences: splitList(form.transportPreferences),
+    transport_strategy: form.transportStrategy,
     lodging_preferences: splitList(form.lodgingPreferences),
     must_visit: splitList(form.mustVisit),
     avoid: splitList(form.avoid),

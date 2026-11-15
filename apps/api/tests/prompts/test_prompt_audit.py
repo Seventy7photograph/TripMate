@@ -29,6 +29,14 @@ def test_every_agent_prompt_is_versioned_and_listed_in_inventory() -> None:
             ).sha256,
         },
         {
+            "agent": "requirement-parser",
+            "prompt_id": "system",
+            "version": "1.1.0",
+            "sha256": catalog.get(
+                catalog_reference("requirement-parser", "system", "1.1.0")
+            ).sha256,
+        },
+        {
             "agent": "research-planner",
             "prompt_id": "tool-selection",
             "version": "1.0.0",
@@ -50,6 +58,30 @@ def test_every_agent_prompt_is_versioned_and_listed_in_inventory() -> None:
             "version": "1.0.0",
             "sha256": catalog.get(
                 catalog_reference("travel-chat", "intent-router", "1.0.0")
+            ).sha256,
+        },
+        {
+            "agent": "travel-chat",
+            "prompt_id": "intent-router",
+            "version": "1.1.0",
+            "sha256": catalog.get(
+                catalog_reference("travel-chat", "intent-router", "1.1.0")
+            ).sha256,
+        },
+        {
+            "agent": "travel-chat",
+            "prompt_id": "intent-router",
+            "version": "1.2.0",
+            "sha256": catalog.get(
+                catalog_reference("travel-chat", "intent-router", "1.2.0")
+            ).sha256,
+        },
+        {
+            "agent": "travel-chat",
+            "prompt_id": "intent-router",
+            "version": "1.3.0",
+            "sha256": catalog.get(
+                catalog_reference("travel-chat", "intent-router", "1.3.0")
             ).sha256,
         },
     ]

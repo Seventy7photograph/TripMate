@@ -5,8 +5,8 @@ export interface UploadedAsset {
   mime_type: string;
   kind: "image" | "document";
   size_bytes: number;
-  created_at: string;
-  expires_at: string;
+  created_at?: string;
+  expires_at?: string;
 }
 
 export interface PendingAttachment {

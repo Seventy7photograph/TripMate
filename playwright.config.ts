@@ -40,6 +40,10 @@ export default defineConfig({
         MODEL_CONFIG_DB_ENABLED: "false",
         PROVIDER_PROFILE: "mock",
         MAP_PROVIDER_PROFILE: "mock",
+        MCP_GATEWAY_ENABLED: "false",
+        MCP_ALLOWED_CONNECTORS: "",
+        MCP_AMAP_ENDPOINT: "",
+        MCP_WEATHER_ENDPOINT: "",
       },
     },
     {

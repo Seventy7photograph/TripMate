@@ -11,6 +11,7 @@ from app.agents.requirement_parser import (
 )
 from app.models.agent_run import AgentRun
 from app.providers.llm.base import StructuredLlmProvider
+from app.services.provider_health_service import ProviderHealthService
 
 
 class BriefService:
@@ -110,6 +111,12 @@ class BriefService:
             },
         ]
         run.finished_at = datetime.now(UTC)
+        await ProviderHealthService(self._session).record_llm(
+            provider_name=run.provider,
+            status="healthy",
+            latency_ms=run.latency_ms,
+            model_name=run.model_name,
+        )
         await self._session.commit()
         return result
 
@@ -147,6 +154,13 @@ class BriefService:
             },
         ]
         run.finished_at = datetime.now(UTC)
+        await ProviderHealthService(self._session).record_llm(
+            provider_name=provider,
+            status="degraded",
+            latency_ms=latency_ms,
+            model_name=model_name,
+            error_code=error_code,
+        )
         await self._session.commit()
 
     @staticmethod

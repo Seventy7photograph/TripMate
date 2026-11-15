@@ -17,6 +17,10 @@ input_schema:
       type: [number, "null"]
     city:
       type: [string, "null"]
+    latitude:
+      type: [number, "null"]
+    longitude:
+      type: [number, "null"]
   required: [dates]
   additionalProperties: false
 output_schema:
@@ -29,17 +33,29 @@ output_schema:
       type: array
       items:
         type: string
+    weather_notes:
+      type: array
+      items:
+        type: string
+    disclaimer:
+      type: string
     evidence_ids:
       type: array
       items:
         type: string
-  required: [level, reminders, evidence_ids]
+  required:
+    - level
+    - reminders
+    - weather_notes
+    - disclaimer
+    - evidence_ids
   additionalProperties: false
 allowed_tools:
   - get_weather
   - get_altitude
   - get_route
-allowed_mcp_connectors: []
+allowed_mcp_connectors:
+  - weather
 max_tool_calls: 6
 timeout_seconds: 45
 max_tokens: 4000

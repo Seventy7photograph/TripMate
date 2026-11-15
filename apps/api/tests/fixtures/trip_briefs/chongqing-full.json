@@ -9,6 +9,26 @@
   "interests": ["美食", "城市漫步", "夜景"],
   "pace": "balanced",
   "transport_preferences": ["公共交通", "步行"],
+  "transport_strategy": {
+    "strategy": "mixed",
+    "segments": [
+      {
+        "mode": "public_transit",
+        "coverage": "destination_local",
+        "days": null,
+        "parking_required": null,
+        "description": "目的地内公共交通"
+      },
+      {
+        "mode": "walking",
+        "coverage": "destination_local",
+        "days": null,
+        "parking_required": null,
+        "description": "目的地内步行"
+      }
+    ],
+    "constraints": []
+  },
   "lodging_preferences": ["解放碑"],
   "must_visit": ["洪崖洞"],
   "avoid": ["排队过久"],

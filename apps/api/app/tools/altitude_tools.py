@@ -124,6 +124,11 @@ class AltitudeTool:
             evidence_id=evidence_id,
         )
 
+    async def close(self) -> None:
+        close = getattr(self._provider, "close", None)
+        if close is not None:
+            await close()
+
     @staticmethod
     def spec() -> ToolSpec:
         return _GET_ALTITUDE_SPEC

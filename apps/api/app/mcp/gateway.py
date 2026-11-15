@@ -2,7 +2,7 @@
 
 import json
 import time
-from typing import Protocol
+from typing import Protocol, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -16,6 +16,7 @@ from app.mcp.registry import McpConnectorRegistry, McpNotAllowedError
 from app.services.prompt_safety import PromptSafetyService
 from app.tools.context import ToolContext
 from app.tools.registry import ToolNotAllowedError, ToolRegistry
+from app.tools.weather_tools import WeatherSnapshotOutput
 
 
 class McpClientError(Exception):
@@ -61,6 +62,13 @@ class McpStateStore(Protocol):
     ) -> McpConnectionState: ...
 
     async def record_failure(
+        self,
+        connector_id: str,
+        *,
+        error_code: str,
+    ) -> McpConnectionState: ...
+
+    async def record_fallback(
         self,
         connector_id: str,
         *,
@@ -119,7 +127,7 @@ class McpGateway:
         connector: str,
         tool_name: str,
         payload: dict[str, object],
-    ) -> BaseModel:
+    ) -> McpToolResult:
         definition = self._connectors.resolve(connector)
         if definition.connector_id not in context.allowed_mcp_connectors:
             raise McpNotAllowedError(connector)
@@ -140,7 +148,23 @@ class McpGateway:
         if registered.spec.provider_type != binding.provider_type:
             raise McpNotAllowedError(tool_name)
         if not await self._state.is_enabled(definition.connector_id):
-            raise McpNotAllowedError(connector)
+            fallback = await self._tools.invoke(
+                context,
+                tool_name,
+                registered.spec.input_model.model_validate(
+                    payload
+                ).model_dump(mode="json"),
+            )
+            fallback_result = self._fallback_result(
+                definition.connector_id,
+                tool_name,
+                fallback,
+            )
+            await self._record_fallback(
+                definition.connector_id,
+                "mcp_connector_disabled",
+            )
+            return fallback_result
 
         input_model = registered.spec.input_model.model_validate(payload)
         serialized_payload = input_model.model_dump(mode="json")
@@ -155,7 +179,11 @@ class McpGateway:
                     connector_id=definition.connector_id,
                     tool_name=tool_name,
                     payload=serialized_payload,
-                    output_model=registered.spec.output_model,
+                    output_model=(
+                        WeatherSnapshotOutput
+                        if binding.output_kind == "weather_snapshot"
+                        else registered.spec.output_model
+                    ),
                 ),
                 timeout_seconds=min(
                     registered.spec.timeout_seconds,
@@ -176,20 +204,16 @@ class McpGateway:
                 )
             except Exception:
                 raise exc
-            return McpToolResult(
-                connector_id=definition.connector_id,
-                tool_name=tool_name,
-                prompt_text=self._prompt_safety.wrap_untrusted(
-                    f"fallback:{definition.connector_id}:{tool_name}",
-                    json.dumps(
-                        fallback.model_dump(mode="json"),
-                        ensure_ascii=False,
-                        default=str,
-                    ),
-                ),
-                data=fallback.model_dump(mode="json"),
-                fallback_used=True,
+            fallback_result = self._fallback_result(
+                definition.connector_id,
+                tool_name,
+                fallback,
             )
+            await self._record_fallback(
+                definition.connector_id,
+                exc.code,
+            )
+            return fallback_result
         except Exception as exc:
             await self._state.record_failure(
                 definition.connector_id,
@@ -201,7 +225,40 @@ class McpGateway:
             definition.connector_id,
             latency_ms=latency_ms,
         )
-        return result
+        return cast(McpToolResult, result)
+
+    def _fallback_result(
+        self,
+        connector_id: str,
+        tool_name: str,
+        fallback: BaseModel,
+    ) -> McpToolResult:
+        return McpToolResult(
+            connector_id=connector_id,
+            tool_name=tool_name,
+            prompt_text=self._prompt_safety.wrap_untrusted(
+                f"fallback:{connector_id}:{tool_name}",
+                json.dumps(
+                    fallback.model_dump(mode="json"),
+                    ensure_ascii=False,
+                    default=str,
+                ),
+            ),
+            data=fallback.model_dump(mode="json"),
+            fallback_used=True,
+        )
+
+    async def _record_fallback(
+        self,
+        connector_id: str,
+        error_code: str,
+    ) -> None:
+        record_fallback = getattr(self._state, "record_fallback", None)
+        if record_fallback is not None:
+            await record_fallback(
+                connector_id,
+                error_code=error_code,
+            )
 
     async def _execute_remote(
         self,

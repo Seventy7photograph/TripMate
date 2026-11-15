@@ -18,7 +18,7 @@ input_schema:
       items:
         type: string
     trip_days:
-      type: integer
+      type: [integer, "null"]
       minimum: 1
   required: [destination, platform, tone, confirmed_facts]
   additionalProperties: false

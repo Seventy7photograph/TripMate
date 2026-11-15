@@ -38,6 +38,8 @@ describe("travel chat api", () => {
       "那附近还有什么？",
       ["asset-1"],
       [{ role: "user", content: "我明天去泉州。" }],
+      "conversation-1",
+      new Date("2026-11-15T12:00:00+08:00"),
     );
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -48,6 +50,8 @@ describe("travel chat api", () => {
           message: "那附近还有什么？",
           attachment_ids: ["asset-1"],
           history: [{ role: "user", content: "我明天去泉州。" }],
+          conversation_id: "conversation-1",
+          client_today: "2026-11-15",
         }),
       }),
     );

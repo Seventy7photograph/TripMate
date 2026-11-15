@@ -23,7 +23,30 @@ class EvidenceService:
         self._evidence = EvidenceRepository(session)
         self._trips = TripRepository(session)
 
-    async def upsert(
+    async def upsert(self, record: EvidenceRecord) -> EvidenceRecord:
+        if record.trip_id is not None:
+            trip = await self._trips.get_for_owner(
+                owner_id=record.owner_id,
+                trip_id=record.trip_id,
+            )
+            if trip is None:
+                raise EvidenceTripNotFoundError
+        return await self._evidence.upsert(record)
+
+    async def list_for_owner(
+        self,
+        *,
+        owner_id: UUID,
+        trip_id: UUID | None = None,
+        evidence_ids: set[UUID] | None = None,
+    ) -> list[EvidenceRecord]:
+        return await self._evidence.list_for_owner(
+            owner_id=owner_id,
+            trip_id=trip_id,
+            evidence_ids=evidence_ids,
+        )
+
+    async def upsert_fact(
         self,
         owner_id: UUID,
         trip_id: UUID | None,
@@ -56,7 +79,7 @@ class EvidenceService:
             raw_hash=_value_hash(value),
             value=value,
         )
-        stored = await self._evidence.upsert(record)
+        stored = await self.upsert(record)
         await self._session.commit()
         return stored
 

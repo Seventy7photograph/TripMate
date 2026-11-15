@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.domain.itinerary import SourceMetadata
-from app.evidence.repository import EvidenceRepository
+from app.evidence.service import EvidenceService
 from app.graph.state import TravelGraphState
 from app.graph.travel_graph import TravelGraph, TravelGraphOutcome, create_travel_graph
 from app.models.agent_run import AgentRun
@@ -22,10 +22,11 @@ from app.repositories.trip_repository import TripRepository
 from app.schemas.ai import PlanningEventContract, TripBriefContract
 from app.services.cost_guard import CostGuard
 from app.services.feature_service import FeatureFlagService
-from app.services.memory_service import MemoryService
+from app.services.provider_health_service import ProviderHealthService
 from app.services.version_service import VersionService, VersionTripNotFoundError
-from app.skills.registry import load_configured_registry
+from app.skills.runtime import SkillRuntime, build_skill_runtime
 from app.skills.state_service import SkillStateService
+from app.tools.memory_tools import AuthorizedMemoryOutput
 
 
 class PlanningTripNotFoundError(Exception):
@@ -68,6 +69,7 @@ class PlanningService:
         self._trips = TripRepository(session)
         self._features = FeatureFlagService(session)
         self._costs = CostGuard(session, settings)
+        self._skill_runtime: SkillRuntime | None = None
 
     async def start(
         self,
@@ -132,6 +134,15 @@ class PlanningService:
         return self._to_view(run)
 
     async def run_job(self, job_id: UUID) -> AgentRunView:
+        try:
+            return await self._run_job(job_id)
+        finally:
+            runtime = self._skill_runtime
+            self._skill_runtime = None
+            if runtime is not None:
+                await runtime.close()
+
+    async def _run_job(self, job_id: UUID) -> AgentRunView:
         # 已完成任务直接返回，避免 Worker 重启后重复生成。
         run = await self._session.get(AgentRun, job_id)
         if run is None:
@@ -192,7 +203,6 @@ class PlanningService:
         await self._session.commit()
 
         contract = TripBriefContract.model_validate(trip.brief.to_record())
-        memory_service = MemoryService(self._session)
         memory_query = " ".join(
             [
                 trip.brief.destination,
@@ -201,12 +211,62 @@ class PlanningService:
                 *trip.brief.lodging_preferences,
             ]
         )
+        skill_runtime = await build_skill_runtime(
+            session=self._session,
+            settings=self._settings,
+            owner_id=run.created_by,
+            trip_id=trip.id,
+        )
+        self._skill_runtime = skill_runtime
+        skills_enabled = await self._features.is_enabled(
+            "agent_skills_enabled"
+        )
+        router_enabled = await self._features.is_enabled(
+            "agent_skill_router_enabled"
+        )
+        available_skills = (
+            await SkillStateService(self._session).enabled_manifests(
+                skill_runtime.registry
+            )
+            if skills_enabled
+            else []
+        )
+        memory_skills_used: list[dict[str, object]] = []
         memory_event: PlanningEventContract | None = None
         try:
-            memory_constraints = await memory_service.retrieval_constraints(
-                owner_id=run.created_by,
-                query=memory_query,
-            )
+            if (
+                skills_enabled
+                and any(
+                    skill.name == "travel-memory"
+                    for skill in available_skills
+                )
+            ):
+                memory_result = await skill_runtime.execute(
+                    "travel-memory",
+                    {"query": memory_query, "limit": 8},
+                )
+                memory_output = AuthorizedMemoryOutput.model_validate(
+                    memory_result.output
+                )
+                memory_constraints = [
+                    item.content for item in memory_output.items
+                ]
+                memory_skills_used.append(
+                    {
+                        "name": memory_result.skill_name,
+                        "version": memory_result.version,
+                        "status": memory_result.status,
+                    }
+                )
+            else:
+                from app.services.memory_service import MemoryService
+
+                memory_constraints = await MemoryService(
+                    self._session
+                ).retrieval_constraints(
+                    owner_id=run.created_by,
+                    query=memory_query,
+                )
         except SQLAlchemyError:
             memory_constraints = []
             run.events = [
@@ -241,20 +301,6 @@ class PlanningService:
             ]
             await self._session.commit()
         try:
-            skill_registry = load_configured_registry(self._settings)
-            skills_enabled = await self._features.is_enabled(
-                "agent_skills_enabled"
-            )
-            router_enabled = await self._features.is_enabled(
-                "agent_skill_router_enabled"
-            )
-            available_skills = (
-                await SkillStateService(self._session).enabled_manifests(
-                    skill_registry
-                )
-                if skills_enabled
-                else []
-            )
             outcome = await self._graph.run(
                 trip_id=str(trip.id),
                 version=run.source_version,
@@ -264,10 +310,11 @@ class PlanningService:
                 checkpointer=self._checkpointer,
                 resume=was_started,
                 owner_id=run.created_by,
-                evidence_writer=EvidenceRepository(self._session),
+                evidence_writer=EvidenceService(self._session),
                 available_skills=available_skills,
                 skills_enabled=skills_enabled,
                 router_enabled=router_enabled,
+                skill_runtime=skill_runtime,
                 on_update=lambda state: self._persist_progress(
                     job_id,
                     state,
@@ -282,6 +329,43 @@ class PlanningService:
                     outcome=outcome,
                 )
             self._apply_outcome(run, outcome)
+            run.skills_used = [
+                *memory_skills_used,
+                *run.skills_used,
+            ]
+            run.tool_call_count = (
+                len(outcome.tool_audits)
+                + len(skill_runtime.tool_context.runner.audits)
+            )
+            for audit in skill_runtime.tool_context.runner.audits:
+                self._session.add(
+                    ToolCallLog(
+                        agent_run_id=run.id,
+                        tool_name=audit.tool_name,
+                        provider=audit.provider,
+                        input_hash=audit.input_hash,
+                        status=audit.status,
+                        latency_ms=audit.latency_ms,
+                        estimated_cost_minor=audit.estimated_cost_minor,
+                        error_code=audit.error_code,
+                    )
+                )
+            provider_health = ProviderHealthService(self._session)
+            for audit in [
+                *outcome.tool_audits,
+                *skill_runtime.tool_context.runner.audits,
+            ]:
+                await provider_health.record_audit(audit)
+            await provider_health.record_llm(
+                provider_name=run.provider,
+                status=(
+                    "healthy"
+                    if run.status in {"completed", "partial"}
+                    else "degraded"
+                ),
+                latency_ms=run.latency_ms,
+                model_name=run.model_name,
+            )
             if memory_event is not None:
                 merged_events = [
                     memory_event,
@@ -315,6 +399,19 @@ class PlanningService:
                 ).model_dump(mode="json"),
             ]
             run.finished_at = datetime.now(UTC)
+            await ProviderHealthService(self._session).record_llm(
+                provider_name=run.provider,
+                status="degraded",
+                latency_ms=int(
+                    (
+                        run.finished_at
+                        - (run.started_at or run.finished_at)
+                    ).total_seconds()
+                    * 1_000
+                ),
+                model_name=run.model_name,
+                error_code=run.error_code,
+            )
 
         await self._session.flush()
         await self._session.refresh(run)
@@ -358,7 +455,8 @@ class PlanningService:
         itinerary_repository = ItineraryRepository(self._session)
         existing_days = await itinerary_repository.list_days(trip_id=trip.id)
         if existing_days:
-            raise ValueError("Trip already has itinerary days")
+            # 版本锁已保存修改前快照；显式 apply 时替换现有逐日行程。
+            await itinerary_repository.delete_days_for_trip(trip_id=trip.id)
 
         candidate_by_id = {
             str(candidate["provider_place_id"]): candidate

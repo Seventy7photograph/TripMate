@@ -24,6 +24,7 @@ from app.tools.context import ToolContext
 from app.tools.registry import ToolRegistry
 
 CASES_PATH = Path(__file__).with_name("cases.yaml")
+CAPABILITY_MATRIX_PATH = Path(__file__).resolve().parents[1] / "conversation_capability_matrix.yaml"
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures/llm/valid_trip_brief.json"
 
 
@@ -31,6 +32,12 @@ def load_cases() -> tuple[int, list[dict[str, Any]]]:
     payload = yaml.safe_load(CASES_PATH.read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return int(payload["version"]), list(payload["cases"])
+
+
+def load_capability_matrix() -> list[dict[str, Any]]:
+    payload = yaml.safe_load(CAPABILITY_MATRIX_PATH.read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return list(payload["cases"])
 
 
 class EvaluationProvider:
@@ -138,6 +145,27 @@ async def test_travel_domain_cases_match_scope() -> None:
 
         assert result.response.intent == case["expected"]["intent"], case["id"]
         assert result.response.in_scope is case["expected"]["in_scope"], case["id"]
+
+
+def test_capability_matrix_is_synchronized_with_prompt_cases() -> None:
+    _, cases = load_cases()
+    travel_cases: dict[str, list[dict[str, Any]]] = {}
+    for case in cases:
+        if case["category"] == "travel_domain":
+            message = str(case["message"])
+            travel_cases.setdefault(message, []).append(case)
+
+    for matrix_case in load_capability_matrix():
+        message = str(matrix_case["message"])
+        matches = travel_cases.get(message, [])
+        assert matches, f"缺少固定 Prompt 评测案例：{message}"
+        required_skills = set(matrix_case["required_skills"])
+        assert any(
+            case["expected"]["intent"] == matrix_case["intent"]
+            and case["expected"]["in_scope"] is matrix_case["in_scope"]
+            and required_skills.issubset(set(case.get("route", {}).get("selected_skills", [])))
+            for case in matches
+        ), f"固定 Prompt 评测契约不一致：{message}"
 
 
 async def test_prompt_injection_is_wrapped_as_untrusted_data() -> None:

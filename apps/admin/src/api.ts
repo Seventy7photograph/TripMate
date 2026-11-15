@@ -145,6 +145,17 @@ export const adminApi = {
     );
   },
 
+  checkMcpConnector(
+    token: string,
+    connectorId: string,
+  ): Promise<McpConnectorStatus> {
+    return request<McpConnectorStatus>(
+      `/api/v1/admin/mcp-connectors/${encodeURIComponent(connectorId)}/check`,
+      { method: "POST" },
+      token,
+    );
+  },
+
   async skills(token: string): Promise<SkillManifest[]> {
     const response = await request<{ items: SkillManifest[] }>(
       "/api/v1/admin/skills",
@@ -159,12 +170,13 @@ export const adminApi = {
     skillName: string,
     enabled: boolean,
     reason?: string,
+    version?: string,
   ): Promise<SkillManifest> {
     return request<SkillManifest>(
       `/api/v1/admin/skills/${encodeURIComponent(skillName)}/toggle`,
       {
         method: "POST",
-        body: JSON.stringify({ enabled, reason }),
+        body: JSON.stringify({ enabled, reason, version }),
       },
       token,
     );

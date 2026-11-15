@@ -6,6 +6,10 @@ from uuid import uuid4
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("PROVIDER_PROFILE", "mock")
 os.environ.setdefault("MAP_PROVIDER_PROFILE", "mock")
+os.environ.setdefault("MCP_GATEWAY_ENABLED", "false")
+os.environ.setdefault("MCP_ALLOWED_CONNECTORS", "")
+os.environ.setdefault("MCP_AMAP_ENDPOINT", "")
+os.environ.setdefault("MCP_WEATHER_ENDPOINT", "")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import httpx

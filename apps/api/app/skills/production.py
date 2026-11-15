@@ -139,6 +139,7 @@ class WeatherClothingInput(BaseModel):
 
 
 class WeatherClothingOutput(BaseModel):
+    provider: str
     city: str
     date: Date
     condition: str
@@ -585,6 +586,7 @@ def _weather_and_clothing(tools: ToolRegistry) -> SkillHandler:
         elif clothing != ["当前预报无极端温度提示，按季节正常着装。"]:
             risk = "moderate"
         return WeatherClothingOutput(
+            provider=weather.provider,
             city=weather.city,
             date=weather.date,
             condition=weather.condition,
@@ -688,9 +690,8 @@ def _lodging_area_selection(tools: ToolRegistry) -> SkillHandler:
                 tool_context,
                 "search_places",
                 {
-                    "keyword": f"{request.city} 地铁站 住宿区域",
+                    "keyword": f"{request.city} 地铁站",
                     "city": request.city,
-                    "types": "交通设施服务",
                     "limit": request.limit,
                 },
             )

@@ -45,3 +45,36 @@ async def test_social_copy_uses_confirmed_facts_and_never_publishes() -> None:
     assert result.output.facts_used == ["开元寺开放时间以现场公告为准"]
     assert result.output.auto_published is False
     assert result.output.evidence_links == []
+
+
+async def test_social_copy_allows_unknown_trip_duration() -> None:
+    context = ToolContext(
+        runner=ToolRunner(
+            max_calls=1,
+            deadline=datetime.now(UTC) + timedelta(seconds=10),
+        ),
+        allowed_tools=set(),
+        provider_permissions=set(),
+        owner_id=uuid4(),
+    )
+    skills = load_configured_registry(Settings(app_env="test"))
+    manifest = skills.get("social-copywriting")
+    tools = ToolRegistry()
+
+    result = await SkillExecutor().execute(
+        manifest,
+        SkillContext(
+            tool_registry=tools,
+            tool_context=context,
+            handler=production_skill_handlers(tools, context)[manifest.name],
+        ),
+        SocialCopywritingInput(
+            destination="泉州",
+            platform="wechat_moments",
+            tone="quiet",
+            confirmed_facts=[],
+            trip_days=None,
+        ),
+    )
+
+    assert result.output.title.startswith("泉州")

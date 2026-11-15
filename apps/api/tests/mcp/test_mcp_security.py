@@ -185,20 +185,20 @@ async def test_mcp_rejects_connector_outside_task_allowlist() -> None:
     assert client.calls == 0
 
 
-async def test_disabled_connector_stops_new_calls_immediately() -> None:
+async def test_disabled_connector_skips_remote_and_uses_local_fallback() -> None:
     context = build_context()
     client = ValidAmapClient()
     state = RecordingStateStore(enabled=False)
     gateway = build_gateway(context, state, client)
 
-    with pytest.raises(McpNotAllowedError):
-        await gateway.call_tool(
-            context,
-            "amap",
-            "search_places",
-            {"keyword": "开元寺"},
-        )
+    result = await gateway.call_tool(
+        context,
+        "amap",
+        "search_places",
+        {"keyword": "开元寺"},
+    )
 
+    assert result.fallback_used is True
     assert state.authorized_calls == 0
     assert client.calls == 0
 

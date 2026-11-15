@@ -8,7 +8,7 @@ from app.prompts.schema import LoadedPrompt, PromptReference
 REQUIREMENT_PARSER_SYSTEM = PromptReference(
     agent="requirement-parser",
     prompt_id="system",
-    version="1.0.0",
+    version="1.1.0",
 )
 RESEARCH_PLANNER_TOOL_SELECTION = PromptReference(
     agent="research-planner",
@@ -23,7 +23,7 @@ ITINERARY_COMPOSER_SYSTEM = PromptReference(
 TRAVEL_CHAT_INTENT_ROUTER = PromptReference(
     agent="travel-chat",
     prompt_id="intent-router",
-    version="1.0.0",
+    version="1.3.0",
 )
 TRAVEL_CHAT_ANSWER = PromptReference(
     agent="travel-chat",

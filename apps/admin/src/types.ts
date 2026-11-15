@@ -130,6 +130,11 @@ export interface ToolHealth {
 
 export interface SkillManifest {
   name: string;
+  available_versions: string[];
+  display_name: string;
+  purpose: string;
+  boundary: string;
+  surfaces: string[];
   version: string;
   status: "active" | "disabled";
   description: string;
@@ -144,6 +149,13 @@ export interface SkillManifest {
   enabled: boolean;
   updated_by: string | null;
   updated_at: string | null;
+  registered: boolean;
+  runtime_status: "ready" | "degraded" | "disabled" | "unavailable";
+  execution_mode: "mcp" | "local" | "disabled";
+  recent_runs: number;
+  success_rate: number | null;
+  last_used_at: string | null;
+  as_of: string;
 }
 
 export interface ProviderStatus {
@@ -171,6 +183,11 @@ export interface ProviderStatus {
 
 export interface McpConnectorStatus {
   connector_id: string;
+  display_name: string;
+  purpose: string;
+  boundary: string;
+  tools: string[];
+  configured: boolean;
   enabled: boolean;
   status:
     | "healthy"
@@ -186,6 +203,7 @@ export interface McpConnectorStatus {
   daily_quota: number;
   rate_limit_per_minute: number;
   window_calls: number;
+  as_of: string | null;
 }
 
 export interface AuditLog {

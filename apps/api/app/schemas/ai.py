@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.domain.transport import TransportStrategy
 from app.domain.trip import TripPace
 
 PlanningEventType = Literal["stage", "tool_call", "validation", "complete", "error"]
@@ -22,6 +23,9 @@ class TripBriefContract(BaseModel):
     interests: list[str] = Field(default_factory=list)
     pace: TripPace = "balanced"
     transport_preferences: list[str] = Field(default_factory=list)
+    transport_strategy: TransportStrategy = Field(
+        default_factory=TransportStrategy
+    )
     lodging_preferences: list[str] = Field(default_factory=list)
     must_visit: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)

@@ -56,7 +56,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await engine.dispose()
 
 
-app = FastAPI(title="TripMate API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="TripMate API", version="1.1.0", lifespan=lifespan)
 install_security_headers(app, settings)
 app.add_middleware(
     CORSMiddleware,

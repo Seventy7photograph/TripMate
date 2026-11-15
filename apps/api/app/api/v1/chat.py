@@ -1,8 +1,8 @@
 # 文件说明：FastAPI 路由：chat。
 """旅行对话 API：先识别意图，再进入规划或 Web 研究链路。"""
 
-from datetime import UTC, datetime, timedelta
-from typing import Annotated, cast
+from collections.abc import AsyncIterator
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -15,8 +15,6 @@ from app.api.deps import (
     require_feature,
 )
 from app.api.v1.uploads import UploadServiceDep, upload_error
-from app.evidence.repository import EvidenceRepository
-from app.providers.base import NearbyPlaceProvider
 from app.providers.llm.base import (
     LlmProviderError,
     LlmRateLimitError,
@@ -24,28 +22,13 @@ from app.providers.llm.base import (
 )
 from app.providers.llm.factory import LlmConfigurationError, build_llm_provider
 from app.schemas.chat import TravelChatRequest, TravelChatResponse
-from app.services.memory_service import MemoryService
+from app.services.conversation_service import ConversationNotFoundError
+from app.services.feature_service import FeatureFlagService
 from app.services.model_config_service import ModelConfigError, ModelConfigService
-from app.services.place_service import PlaceService, create_map_provider
 from app.services.travel_chat_service import TravelChatService
-from app.services.upload_service import UploadError, UploadService
-from app.skills.production import production_skill_handlers
-from app.skills.registry import load_configured_registry
+from app.services.upload_service import UploadError
+from app.skills.runtime import build_skill_runtime
 from app.skills.state_service import SkillStateService
-from app.tools.altitude_tools import AltitudeTool, create_altitude_tool
-from app.tools.attachment_tools import AttachmentTool
-from app.tools.base import ToolRunner
-from app.tools.budget_tools import BudgetTool
-from app.tools.context import ToolContext
-from app.tools.matrix_tools import MatrixTool
-from app.tools.memory_tools import MemoryTool
-from app.tools.nearby_tools import NearbyTool
-from app.tools.place_detail_tools import PlaceDetailTool
-from app.tools.place_fact_tools import PlaceFactTool
-from app.tools.place_tools import PlaceTool
-from app.tools.registry import ToolRegistry
-from app.tools.route_tools import RouteTool
-from app.tools.weather_tools import WeatherTool, create_weather_tool
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -66,7 +49,7 @@ async def get_travel_chat_service(
     current_user: CurrentUserDep,
     session: SessionDep,
     settings: SettingsDep,
-) -> TravelChatService:
+) -> AsyncIterator[TravelChatService]:
     """构建带 owner 边界的 ToolContext，防止 Skill 跨租户访问。"""
     try:
         stage_settings = await ModelConfigService(session, settings).settings_for(
@@ -82,82 +65,36 @@ async def get_travel_chat_service(
             },
         ) from exc
 
-    map_provider = create_map_provider(stage_settings)
-    tool_context = ToolContext(
-        runner=ToolRunner(
-            max_calls=settings.planning_max_tool_calls,
-            deadline=datetime.now(UTC)
-            + timedelta(seconds=settings.planning_timeout_seconds),
-        ),
-        allowed_tools={
-            "search_places",
-            "get_route",
-            "calculate_budget",
-            MemoryTool.name,
-            "get_weather",
-            "search_nearby_places",
-            "get_place_detail",
-            "get_place_facts",
-            "get_route_matrix",
-            "get_altitude",
-            "extract_attachment",
-        },
-        provider_permissions={
-            "map",
-            "deterministic",
-            "memory",
-            "weather",
-            "attachment",
-        },
+    runtime = await build_skill_runtime(
+        session=session,
+        settings=stage_settings,
         owner_id=current_user.id,
-        evidence_writer=EvidenceRepository(session),
     )
-    place_service = PlaceService(
-        session,
-        stage_settings,
-        provider=map_provider,
+    feature_service = FeatureFlagService(session)
+    skills_enabled = await feature_service.is_enabled(
+        "agent_skills_enabled"
     )
-    place_tool = PlaceTool(map_provider, tool_context)
-    route_tool = RouteTool(map_provider, tool_context)
-    budget_tool = BudgetTool(tool_context)
-    memory_tool = MemoryTool(MemoryService(session), tool_context)
-    weather_tool = create_weather_tool(stage_settings, tool_context)
-    nearby_tool = NearbyTool(
-        cast(NearbyPlaceProvider, map_provider),
-        tool_context,
+    router_enabled = await feature_service.is_enabled(
+        "agent_skill_router_enabled"
     )
-    place_detail_tool = PlaceDetailTool(place_service, tool_context)
-    place_fact_tool = PlaceFactTool(place_service, tool_context)
-    matrix_tool = MatrixTool(place_service, route_tool, tool_context)
-    altitude_tool = create_altitude_tool(stage_settings, tool_context)
-    attachment_tool = AttachmentTool(
-        UploadService(session, stage_settings),
-        tool_context,
+    available_skills = (
+        await SkillStateService(session).enabled_manifests(
+            runtime.registry
+        )
+        if skills_enabled and router_enabled
+        else []
     )
-    tools = ToolRegistry()
-    tools.register(PlaceTool.spec(), place_tool.invoke)
-    tools.register(RouteTool.spec(), route_tool.invoke)
-    tools.register(BudgetTool.spec(), budget_tool.invoke)
-    tools.register(MemoryTool.spec(), memory_tool.invoke)
-    tools.register(WeatherTool.spec(), weather_tool.invoke)
-    tools.register(NearbyTool.spec(), nearby_tool.invoke)
-    tools.register(PlaceDetailTool.spec(), place_detail_tool.invoke)
-    tools.register(PlaceFactTool.spec(), place_fact_tool.invoke)
-    tools.register(MatrixTool.spec(), matrix_tool.invoke)
-    tools.register(AltitudeTool.spec(), altitude_tool.invoke)
-    tools.register(AttachmentTool.spec(), attachment_tool.invoke)
-    skill_registry = load_configured_registry(settings)
-    available_skills = await SkillStateService(session).enabled_manifests(
-        skill_registry
-    )
-    agent = TravelChatAgent(
-        provider=provider,
-        available_skills=available_skills,
-        tool_registry=tools,
-        tool_context=tool_context,
-        skill_handlers=production_skill_handlers(tools, tool_context),
-    )
-    return TravelChatService(session, agent)
+    try:
+        agent = TravelChatAgent(
+            provider=provider,
+            available_skills=available_skills,
+            tool_registry=runtime.tools,
+            tool_context=runtime.tool_context,
+            skill_handlers=runtime.handlers,
+        )
+        yield TravelChatService(session, agent)
+    finally:
+        await runtime.close()
 
 
 TravelChatServiceDep = Annotated[
@@ -196,7 +133,15 @@ async def respond_to_travel_chat(
                 if upload_context is None
                 else tuple(upload_context.image_data_urls)
             ),
+            attachment_ids=payload.attachment_ids,
+            conversation_id=payload.conversation_id,
+            client_today=payload.client_today,
         )
+    except ConversationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        ) from exc
     except LlmTimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,

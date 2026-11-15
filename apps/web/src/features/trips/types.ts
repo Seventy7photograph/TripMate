@@ -1,6 +1,39 @@
 // 文件说明：前端功能模块：types。
 export type TripStatus = "draft" | "planning" | "ready" | "archived";
 export type TripPace = "relaxed" | "balanced" | "intensive";
+export type TransportMode =
+  | "self_drive"
+  | "rental_car"
+  | "taxi"
+  | "public_transit"
+  | "walking"
+  | "cycling"
+  | "high_speed_rail"
+  | "train"
+  | "flight"
+  | "ferry"
+  | "chartered_car"
+  | "mixed";
+export type TransportCoverage =
+  | "whole_trip"
+  | "intercity"
+  | "destination_local"
+  | "specific_days"
+  | "partial";
+
+export interface TransportSegmentPreference {
+  mode: TransportMode;
+  coverage: TransportCoverage;
+  days: number[] | null;
+  parking_required: boolean | null;
+  description: string;
+}
+
+export interface TransportStrategy {
+  strategy: "single" | "mixed" | "unspecified";
+  segments: TransportSegmentPreference[];
+  constraints: string[];
+}
 
 export interface TripBrief {
   destination: string;
@@ -13,6 +46,7 @@ export interface TripBrief {
   interests: string[];
   pace: TripPace;
   transport_preferences: string[];
+  transport_strategy: TransportStrategy;
   lodging_preferences: string[];
   must_visit: string[];
   avoid: string[];

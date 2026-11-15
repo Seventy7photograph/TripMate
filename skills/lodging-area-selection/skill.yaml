@@ -11,6 +11,9 @@ input_schema:
       type: array
       items:
         type: string
+    budget_minor_per_night:
+      type: [integer, "null"]
+      minimum: 0
     limit:
       type: integer
       minimum: 2
@@ -20,20 +23,35 @@ input_schema:
 output_schema:
   type: object
   properties:
+    city:
+      type: string
     areas:
       type: array
       items:
         type: object
+    availability_notice:
+      type: string
+    warnings:
+      type: array
+      items:
+        type: string
     evidence_ids:
       type: array
       items:
         type: string
-  required: [areas, evidence_ids]
+  required:
+    - city
+    - areas
+    - availability_notice
+    - warnings
+    - evidence_ids
   additionalProperties: false
 allowed_tools:
   - search_places
   - get_route_matrix
-allowed_mcp_connectors: []
+  - get_route
+allowed_mcp_connectors:
+  - amap
 max_tool_calls: 4
 timeout_seconds: 45
 max_tokens: 4000

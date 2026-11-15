@@ -19,10 +19,6 @@ test("user plans a trip through the home conversation", async ({ page }) => {
     .fill("2026年12月1日到12月3日，2个人从上海去重庆，喜欢美食。");
   await page.getByRole("button", { name: "开始规划" }).click();
 
-  await expect(page.getByText("这次旅行的总预算大约是多少？")).toBeVisible();
-  await page.getByLabel("继续补充旅行需求").fill("预算5000元");
-  await page.getByRole("button", { name: "发送" }).click();
-
   await expect(page.getByText("已生成")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("link", { name: /旅行详情/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "历史对话" })).toBeVisible();

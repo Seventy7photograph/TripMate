@@ -6703,6 +6703,10 @@ a {
   background: var(--travel-paper);
 }
 
+.home-page--thread {
+  overflow: hidden;
+}
+
 .home-backdrop-video {
   position: fixed;
   inset: 0;
@@ -6736,9 +6740,13 @@ a {
 }
 
 .home-content--thread {
+  display: flex;
   width: min(100%, 980px);
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
-  padding-bottom: 28px;
+  padding-top: 108px;
+  padding-bottom: 18px;
 }
 
 .home-hero {
@@ -6840,7 +6848,11 @@ a {
 .agent-thread-shell {
   display: grid;
   width: 100%;
-  gap: 20px;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: 12px;
+  overflow: hidden;
 }
 
 .agent-thread-heading {
@@ -6879,13 +6891,33 @@ a {
 
 .agent-thread {
   display: grid;
+  min-height: 0;
   gap: 18px;
-  padding: 12px 0 132px;
+  padding: 6px 10px 18px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(23, 21, 18, 0.24) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.agent-thread::-webkit-scrollbar {
+  width: 7px;
+}
+
+.agent-thread::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(23, 21, 18, 0.24);
+  background-clip: content-box;
 }
 
 .agent-message {
+  min-width: 0;
   max-width: min(88%, 780px);
   margin: 0;
+  overflow-wrap: anywhere;
   animation: message-rise 240ms var(--ease-out) both;
 }
 
@@ -7017,6 +7049,7 @@ a {
 .agent-answer-copy p {
   margin: 0;
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .agent-answer-copy__bullet {
@@ -7072,20 +7105,17 @@ a {
 }
 
 .agent-message--working {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  display: block;
   color: var(--travel-muted);
 }
 
-.agent-working-mark {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(155, 90, 56, 0.1);
-  color: var(--travel-terracotta);
+.agent-thinking {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  gap: 12px;
+  color: var(--travel-muted);
+  font-size: 11px;
 }
 
 .agent-inline-link {
@@ -7108,12 +7138,14 @@ a {
 }
 
 .home-composer--thread {
-  position: sticky;
-  bottom: 18px;
+  position: relative;
+  bottom: auto;
   z-index: 8;
-  width: min(100%, 900px);
+  width: 100%;
   min-height: 116px;
-  margin: 6px auto 0;
+  max-height: min(30dvh, 260px);
+  margin: 0;
+  box-sizing: border-box;
   background: rgba(255, 252, 246, 0.82);
 }
 
@@ -7266,6 +7298,9 @@ a {
 
 .home-composer--thread textarea {
   min-height: 48px;
+  max-height: 14dvh;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .travel-plan-card {
@@ -7949,7 +7984,9 @@ a {
   }
 
   .home-content--thread {
-    padding-bottom: 14px;
+    height: 100dvh;
+    padding-top: 88px;
+    padding-bottom: 8px;
   }
 
   .home-hero {
@@ -8051,8 +8088,18 @@ a {
   }
 
   .home-composer--thread {
-    bottom: 8px;
-    min-height: 108px;
+    bottom: auto;
+    min-height: 104px;
+    max-height: 34dvh;
+    padding: 16px 15px 13px;
+  }
+
+  .agent-thread-shell {
+    gap: 9px;
+  }
+
+  .agent-thread {
+    padding-right: 3px;
   }
 
   .map-page--immersive .map-canvas__toolbar {

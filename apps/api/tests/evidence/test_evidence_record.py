@@ -74,7 +74,7 @@ async def test_evidence_is_owner_isolated(api_client: httpx.AsyncClient) -> None
     outsider_id = UUID(str(outsider["user"]["id"]))
     service = EvidenceService(app.state.test_session)
 
-    record = await service.upsert(
+    record = await service.upsert_fact(
         owner_id=owner_id,
         trip_id=None,
         fact_type="weather",
@@ -110,7 +110,7 @@ async def test_evidence_rejects_trip_owned_by_another_user(
     service = EvidenceService(app.state.test_session)
 
     with pytest.raises(EvidenceTripNotFoundError):
-        await service.upsert(
+        await service.upsert_fact(
             owner_id=outsider_id,
             trip_id=UUID(str(trip.json()["id"])),
             fact_type="place_fact",
@@ -130,7 +130,7 @@ async def test_evidence_upsert_reuses_provider_record(
     service = EvidenceService(app.state.test_session)
     first_fetched_at = datetime.now(UTC)
 
-    first = await service.upsert(
+    first = await service.upsert_fact(
         owner_id=owner_id,
         trip_id=None,
         fact_type="place_fact",
@@ -138,7 +138,7 @@ async def test_evidence_upsert_reuses_provider_record(
         source=_source(owner_id, queried_at=first_fetched_at),
         valid_until=first_fetched_at + timedelta(hours=24),
     )
-    second = await service.upsert(
+    second = await service.upsert_fact(
         owner_id=owner_id,
         trip_id=None,
         fact_type="place_fact",

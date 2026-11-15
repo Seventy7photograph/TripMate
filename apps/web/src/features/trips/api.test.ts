@@ -15,6 +15,19 @@ const brief: TripBriefInput = {
   interests: ["food"],
   pace: "balanced",
   transport_preferences: ["public_transit"],
+  transport_strategy: {
+    strategy: "single",
+    segments: [
+      {
+        mode: "public_transit",
+        coverage: "whole_trip",
+        days: null,
+        parking_required: null,
+        description: "全程公共交通",
+      },
+    ],
+    constraints: [],
+  },
   lodging_preferences: [],
   must_visit: [],
   avoid: [],

@@ -11,6 +11,18 @@ cases:
     expected:
       intent: plan_trip
       in_scope: true
+  - id: citywalk-day-trip
+    category: travel_domain
+    message: 帮我规划一次广州一日游，citywalk
+    route:
+      intent: plan_trip
+      in_scope: true
+      confidence: 0.96
+      selected_skills: []
+      destination: 广州
+    expected:
+      intent: plan_trip
+      in_scope: true
   - id: destination-question
     category: travel_domain
     message: 泉州开元寺有什么值得看的？
@@ -28,9 +40,211 @@ cases:
     expected:
       intent: destination_research
       in_scope: true
+  - id: destination-food-question
+    category: travel_domain
+    message: 广州有什么好吃的
+    route:
+      intent: destination_research
+      in_scope: true
+      confidence: 0.94
+      selected_skills:
+        - destination-research
+      destination: 广州
+      place_query: 广州美食
+      web_search: true
+    answer: 广州有肠粉、云吞面和双皮奶等本地美食。
+    expected:
+      intent: destination_research
+      in_scope: true
+  - id: capability-destination
+    category: travel_domain
+    message: 广州有什么好玩的
+    route:
+      intent: destination_research
+      in_scope: true
+      confidence: 0.92
+      selected_skills:
+        - destination-research
+      destination: 广州
+      place_query: 广州景点
+      web_search: true
+    answer: 广州可以逛沙面、陈家祠和永庆坊。
+    expected:
+      intent: destination_research
+      in_scope: true
+  - id: capability-attractions
+    category: travel_domain
+    message: 泉州古城值得看什么
+    route:
+      intent: destination_research
+      in_scope: true
+      confidence: 0.92
+      selected_skills:
+        - destination-research
+      destination: 泉州
+      place_query: 泉州古城
+      web_search: true
+    answer: 泉州古城可以重点看开元寺、府文庙和西街。
+    expected:
+      intent: destination_research
+      in_scope: true
+  - id: capability-planning
+    category: travel_domain
+    message: 帮我安排成都四天
+    route:
+      intent: plan_trip
+      in_scope: true
+      confidence: 0.95
+      selected_skills: []
+      destination: 成都
+    expected:
+      intent: plan_trip
+      in_scope: true
+  - id: capability-route
+    category: travel_domain
+    message: 成都到乐山怎么走
+    route:
+      intent: route_advice
+      in_scope: true
+      confidence: 0.91
+      selected_skills:
+        - route-optimization
+      destination: 乐山
+      web_search: true
+    answer: 成都到乐山可以优先比较高铁和城际交通。
+    expected:
+      intent: route_advice
+      in_scope: true
+  - id: model-misclassification-route-recovery
+    category: travel_domain
+    message: 成都到乐山怎么走
+    route:
+      intent: out_of_scope
+      in_scope: false
+      confidence: 0.9
+      selected_skills: []
+    answer: 成都到乐山可以优先比较高铁和城际交通。
+    expected:
+      intent: route_advice
+      in_scope: true
+  - id: capability-transport
+    category: travel_domain
+    message: 城市间自驾，市内地铁和步行
+    route:
+      intent: plan_trip
+      in_scope: true
+      confidence: 0.93
+      selected_skills: []
+    expected:
+      intent: plan_trip
+      in_scope: true
+  - id: capability-lodging
+    category: travel_domain
+    message: 住成都哪个区域方便
+    route:
+      intent: travel_question
+      in_scope: true
+      confidence: 0.9
+      selected_skills:
+        - lodging-area-selection
+      destination: 成都
+    answer: 可以优先比较地铁换乘方便且夜间生活成熟的区域。
+    expected:
+      intent: travel_question
+      in_scope: true
+  - id: capability-weather
+    category: travel_domain
+    message: 12月去哈尔滨穿什么
+    route:
+      intent: travel_question
+      in_scope: true
+      confidence: 0.92
+      selected_skills:
+        - weather-and-clothing
+      destination: 哈尔滨
+      web_search: true
+    answer: 建议准备防风羽绒服、保暖内层和防滑鞋。
+    expected:
+      intent: travel_question
+      in_scope: true
+  - id: capability-budget
+    category: travel_domain
+    message: 泉州三天预算3000够吗
+    route:
+      intent: budget_advice
+      in_scope: true
+      confidence: 0.9
+      selected_skills:
+        - budget-optimization
+      destination: 泉州
+    answer: 预算是否足够取决于交通、住宿档位和同行人数。
+    expected:
+      intent: budget_advice
+      in_scope: true
+  - id: capability-policy
+    category: travel_domain
+    message: 去日本需要签证吗
+    route:
+      intent: travel_question
+      in_scope: true
+      confidence: 0.9
+      selected_skills: []
+    answer: 签证要求应以日本官方最新规定为准。
+    expected:
+      intent: travel_question
+      in_scope: true
+  - id: capability-safety
+    category: travel_domain
+    message: 珠峰大本营高反风险大吗
+    route:
+      intent: travel_question
+      in_scope: true
+      confidence: 0.91
+      selected_skills:
+        - safety-briefing
+      destination: 珠峰大本营
+      web_search: true
+    answer: 高海拔地区需要重点评估高原反应风险并安排适应时间。
+    expected:
+      intent: travel_question
+      in_scope: true
+  - id: capability-live-fact
+    category: travel_domain
+    message: 开元寺今天开放吗
+    route:
+      intent: destination_research
+      in_scope: true
+      confidence: 0.9
+      selected_skills:
+        - destination-research
+      destination: 泉州
+      place_query: 开元寺开放时间
+      web_search: true
+      read_url: true
+    answer: 开放时间应以景区官方当日公告为准。
+    expected:
+      intent: destination_research
+      in_scope: true
+  - id: capability-follow-up
+    category: travel_domain
+    message: 改成14号，预算加到5000
+    route:
+      intent: plan_trip
+      in_scope: true
+      confidence: 0.93
+      selected_skills: []
+    expected:
+      intent: plan_trip
+      in_scope: true
   - id: reject-python
     category: travel_domain
     message: 帮我写一段 Python 快速排序代码。
+    expected:
+      intent: out_of_scope
+      in_scope: false
+  - id: capability-out-of-scope
+    category: travel_domain
+    message: 帮我写 Python 排序
     expected:
       intent: out_of_scope
       in_scope: false

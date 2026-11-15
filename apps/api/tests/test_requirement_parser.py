@@ -44,6 +44,11 @@ async def test_parse_complete_request_into_trip_brief(
         "interests": ["美食", "城市漫步"],
         "pace": "relaxed",
         "transport_preferences": [],
+        "transport_strategy": {
+            "strategy": "unspecified",
+            "segments": [],
+            "constraints": [],
+        },
         "lodging_preferences": [],
         "must_visit": [],
         "avoid": [],
@@ -51,7 +56,7 @@ async def test_parse_complete_request_into_trip_brief(
     }
 
 
-async def test_parse_missing_budget_returns_question_without_inventing(
+async def test_parse_allows_unknown_budget(
     api_client: httpx.AsyncClient,
 ) -> None:
     registration = await register_user(
@@ -66,21 +71,16 @@ async def test_parse_missing_budget_returns_question_without_inventing(
         json={
             "text": (
                 "2026年12月1日到12月3日，2个人从上海去重庆，"
-                "喜欢美食和城市漫步。"
+                "预算还不确定，喜欢美食和城市漫步。"
             )
         },
     )
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert payload["brief"] is None
-    assert payload["missing_fields"] == ["budget_minor"]
-    assert payload["draft"]["destination"] == "重庆"
-    assert payload["draft"]["origin"] == "上海"
-    assert payload["draft"]["start_date"] == "2026-12-01"
-    assert payload["draft"]["party_size"] == 2
-    assert len(payload["questions"]) == 1
-    assert "预算" in payload["questions"][0]
+    assert payload["missing_fields"] == []
+    assert payload["questions"] == []
+    assert payload["brief"]["budget_minor"] is None
 
 
 async def test_parse_ambiguous_date_returns_questions_without_guessing_year(
@@ -149,7 +149,7 @@ async def test_parse_persists_model_usage_without_a_trip(
         {
             "agent": "requirement-parser",
             "prompt_id": "system",
-            "version": "1.0.0",
+                "version": "1.1.0",
             "sha256": run.prompt_versions[0]["sha256"],
         }
     ]

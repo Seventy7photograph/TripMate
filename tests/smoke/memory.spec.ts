@@ -48,7 +48,7 @@ test("a new login starts a blank conversation and history stays manual", async (
     .getByLabel("旅行问题或需求")
     .fill("2026年12月1日到12月3日，2个人从上海去重庆，喜欢美食。");
   await page.getByRole("button", { name: "开始规划" }).click();
-  await expect(page.getByText("这次旅行的总预算大约是多少？")).toBeVisible();
+  await expect(page.getByText("已生成")).toBeVisible({ timeout: 15_000 });
 
   await page.locator(".app-profile-link").click();
   await page.getByRole("button", { name: "退出登录" }).click();

@@ -78,7 +78,22 @@ class FakeMapProvider:
             _place("area-1", "钟楼地铁站", "交通设施服务", 118.60),
             _place("area-2", "泉州站", "交通设施服务", 118.61),
         ]
-        if query.types:
+        if "地铁站" in query.keyword:
+            places = [
+                place
+                for place in places
+                if place.category == "交通设施服务"
+            ]
+        elif any(
+            term in query.keyword
+            for term in ("早餐", "午餐", "晚餐")
+        ):
+            places = [
+                place
+                for place in places
+                if place.category == "餐饮服务"
+            ]
+        elif query.types:
             places = [
                 place for place in places if place.category == query.types
             ]

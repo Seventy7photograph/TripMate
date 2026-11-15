@@ -1,6 +1,6 @@
 {
   "name": "tripmate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -10,6 +10,9 @@
   },
   "scripts": {
     "dev": "docker compose up -d postgres redis && pnpm db:migrate && pnpm --parallel dev",
+    "mcp:amap": "pnpm --filter @tripmate/api mcp:amap",
+    "mcp:weather": "pnpm --filter @tripmate/api mcp:weather",
+    "mcp:dev": "pnpm --parallel --filter @tripmate/api run mcp:amap mcp:weather",
     "db:migrate": "pnpm --filter @tripmate/api migrate",
     "lint": "pnpm --recursive lint && node scripts/uv.mjs run --project apps/api ruff check apps/api",
     "check:comments": "node scripts/check-code-comments.mjs",

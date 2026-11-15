@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.domain.transport import TransportStrategy
 from app.domain.trip import TripBrief, TripPace, TripStatus
 
 
@@ -19,6 +20,9 @@ class TripBriefPayload(BaseModel):
     interests: list[str] = Field(default_factory=list, max_length=20)
     pace: TripPace = "balanced"
     transport_preferences: list[str] = Field(default_factory=list, max_length=20)
+    transport_strategy: TransportStrategy = Field(
+        default_factory=TransportStrategy
+    )
     lodging_preferences: list[str] = Field(default_factory=list, max_length=20)
     must_visit: list[str] = Field(default_factory=list, max_length=20)
     avoid: list[str] = Field(default_factory=list, max_length=20)
@@ -77,6 +81,7 @@ class TripBriefPayload(BaseModel):
             interests=self.interests,
             pace=self.pace,
             transport_preferences=self.transport_preferences,
+            transport_strategy=self.transport_strategy,
             lodging_preferences=self.lodging_preferences,
             must_visit=self.must_visit,
             avoid=self.avoid,
@@ -113,6 +118,7 @@ class TripBriefResponse(BaseModel):
     interests: list[str]
     pace: TripPace
     transport_preferences: list[str]
+    transport_strategy: TransportStrategy
     lodging_preferences: list[str]
     must_visit: list[str]
     avoid: list[str]

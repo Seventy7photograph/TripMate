@@ -25,6 +25,8 @@ class SkillInput(BaseModel):
 
 
 class SkillOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     value: str
 
 
@@ -35,6 +37,10 @@ def manifest(
     allowed_mcp_connectors: list[str] | None = None,
     max_tool_calls: int = 1,
     timeout_seconds: float = 2.0,
+    input_schema: dict[str, object] | None = None,
+    output_schema: dict[str, object] | None = None,
+    requires_evidence: bool = False,
+    max_tokens: int = 4_000,
 ) -> SkillManifest:
     return SkillManifest(
         name="route-optimization",
@@ -45,6 +51,10 @@ def manifest(
         allowed_mcp_connectors=allowed_mcp_connectors or [],
         max_tool_calls=max_tool_calls,
         timeout_seconds=timeout_seconds,
+        input_schema=input_schema or SkillInput.model_json_schema(),
+        output_schema=output_schema or SkillOutput.model_json_schema(),
+        requires_evidence=requires_evidence,
+        max_tokens=max_tokens,
     )
 
 
@@ -254,3 +264,62 @@ async def test_executor_rejects_connector_outside_context_allowlist() -> None:
         )
 
     assert caught.value.code == "skill_mcp_not_allowed"
+
+
+async def test_executor_enforces_manifest_input_schema() -> None:
+    async def handler(
+        _: SkillManifest,
+        __: ToolContext,
+        ___: BaseModel,
+    ) -> BaseModel:
+        return SkillOutput(value="must not run")
+
+    with pytest.raises(SkillExecutionError) as caught:
+        await SkillExecutor().execute(
+            manifest(
+                input_schema={
+                    "type": "object",
+                    "properties": {"value": {"type": "integer"}},
+                    "required": ["value"],
+                    "additionalProperties": False,
+                }
+            ),
+            SkillContext(
+                tool_registry=tool_registry(),
+                tool_context=tool_context(),
+                handler=handler,
+            ),
+            SkillInput(value="not-an-integer"),
+        )
+
+    assert caught.value.code == "skill_input_schema_invalid"
+
+
+async def test_executor_enforces_output_schema_and_evidence_requirement() -> None:
+    async def handler(
+        _: SkillManifest,
+        __: ToolContext,
+        ___: BaseModel,
+    ) -> BaseModel:
+        return SkillOutput(value="without-evidence")
+
+    with pytest.raises(SkillExecutionError) as caught:
+        await SkillExecutor().execute(
+            manifest(
+                output_schema={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                    "additionalProperties": False,
+                },
+                requires_evidence=True,
+            ),
+            SkillContext(
+                tool_registry=tool_registry(),
+                tool_context=tool_context(),
+                handler=handler,
+            ),
+            SkillInput(value="evidence"),
+        )
+
+    assert caught.value.code == "skill_evidence_required"

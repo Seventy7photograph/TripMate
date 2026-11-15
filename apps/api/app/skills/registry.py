@@ -32,22 +32,26 @@ class SkillRegistry:
                 raise SkillManifestError("Skill directories cannot be symbolic links")
             if not skill_dir.is_dir():
                 continue
-            manifest_path = skill_dir / "skill.yaml"
-            if not manifest_path.exists():
-                continue
-            if manifest_path.is_symlink():
-                raise SkillManifestError("skill.yaml cannot be a symbolic link")
-            manifest = self._load_manifest(manifest_path, root_path)
-            if manifest.name != skill_dir.name:
-                raise SkillManifestError(
-                    f"Skill name does not match directory: {skill_dir.name}"
-                )
-            key = (manifest.name, manifest.version)
-            if key in loaded:
-                raise SkillManifestError(
-                    f"Duplicate skill version: {manifest.name}@{manifest.version}"
-                )
-            loaded[key] = manifest
+            for manifest_path in _manifest_paths(skill_dir):
+                manifest = self._load_manifest(manifest_path, root_path)
+                if manifest.name != skill_dir.name:
+                    raise SkillManifestError(
+                        f"Skill name does not match directory: {skill_dir.name}"
+                    )
+                if (
+                    manifest_path.parent.parent.name == "versions"
+                    and manifest_path.parent.name != manifest.version
+                ):
+                    raise SkillManifestError(
+                        "Version directory does not match manifest version"
+                    )
+                key = (manifest.name, manifest.version)
+                if key in loaded:
+                    raise SkillManifestError(
+                        "Duplicate skill version: "
+                        f"{manifest.name}@{manifest.version}"
+                    )
+                loaded[key] = manifest
         self._skills = loaded
 
     def get(self, name: str, version: str | None = None) -> SkillManifest:
@@ -69,6 +73,16 @@ class SkillRegistry:
     def latest_manifests(self) -> list[SkillManifest]:
         names = sorted({name for name, _ in self._skills})
         return [self.get(name) for name in names]
+
+    def versions(self, name: str) -> list[str]:
+        return sorted(
+            (
+                version
+                for skill_name, version in self._skills
+                if skill_name == name
+            ),
+            key=_version_key,
+        )
 
     def _load_manifest(
         self,
@@ -104,6 +118,37 @@ class SkillRegistry:
 def _version_key(version: str) -> tuple[int, int, int]:
     major, minor, patch = version.split(".")
     return int(major), int(minor), int(patch)
+
+
+def _manifest_paths(skill_dir: Path) -> list[Path]:
+    versions_dir = skill_dir / "versions"
+    if versions_dir.exists():
+        if versions_dir.is_symlink():
+            raise SkillManifestError("Skill versions directory cannot be a symbolic link")
+        if not versions_dir.is_dir():
+            raise SkillManifestError("Skill versions path must be a directory")
+        paths: list[Path] = []
+        for version_dir in sorted(versions_dir.iterdir()):
+            if version_dir.is_symlink():
+                raise SkillManifestError(
+                    "Skill version directories cannot be symbolic links"
+                )
+            if not version_dir.is_dir():
+                continue
+            manifest_path = version_dir / "skill.yaml"
+            if not manifest_path.exists():
+                continue
+            if manifest_path.is_symlink():
+                raise SkillManifestError("skill.yaml cannot be a symbolic link")
+            paths.append(manifest_path)
+        return paths
+
+    manifest_path = skill_dir / "skill.yaml"
+    if not manifest_path.exists():
+        return []
+    if manifest_path.is_symlink():
+        raise SkillManifestError("skill.yaml cannot be a symbolic link")
+    return [manifest_path]
 
 
 def load_configured_registry(settings: Settings) -> SkillRegistry:

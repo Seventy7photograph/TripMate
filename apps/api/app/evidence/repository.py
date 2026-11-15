@@ -29,6 +29,30 @@ class EvidenceRepository:
         model = result.scalar_one_or_none()
         return self._to_domain(model) if model is not None else None
 
+    async def list_for_owner(
+        self,
+        *,
+        owner_id: UUID,
+        trip_id: UUID | None = None,
+        evidence_ids: set[UUID] | None = None,
+    ) -> list[EvidenceRecord]:
+        statement = select(EvidenceRecordModel).where(
+            EvidenceRecordModel.owner_id == owner_id,
+        )
+        if trip_id is not None:
+            statement = statement.where(
+                EvidenceRecordModel.trip_id == trip_id
+            )
+        if evidence_ids:
+            statement = statement.where(
+                EvidenceRecordModel.id.in_(evidence_ids)
+            )
+        result = await self._session.execute(statement)
+        return [
+            self._to_domain(model)
+            for model in result.scalars()
+        ]
+
     async def upsert(self, record: EvidenceRecord) -> EvidenceRecord:
         model = await self._find_upsert_target(record)
         if model is None:

@@ -9,6 +9,8 @@ input_schema:
       type: array
       items:
         type: object
+    now:
+      type: string
   required: [records]
   additionalProperties: false
 output_schema:

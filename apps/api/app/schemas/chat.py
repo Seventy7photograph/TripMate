@@ -1,10 +1,11 @@
 # 文件说明：Pydantic 数据契约：chat。
+from datetime import date
 from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.requirement import TripBriefExtraction
+from app.schemas.planning_draft import PlanningDraft
 from app.schemas.trip import TripBriefPayload
 
 TravelIntent = Literal[
@@ -27,6 +28,8 @@ class TravelChatRequest(BaseModel):
     message: str = Field(default="", max_length=50_000)
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=3)
     history: list[ChatHistoryTurn] = Field(default_factory=list, max_length=20)
+    conversation_id: UUID | None = None
+    client_today: date | None = None
 
     @model_validator(mode="after")
     def require_message_or_attachment(self) -> Self:
@@ -50,9 +53,11 @@ class TravelChatResponse(BaseModel):
     sources: list[ChatSourceCitation] = Field(default_factory=list)
     selected_skills: list[str] = Field(default_factory=list)
     used_tools: list[str] = Field(default_factory=list)
+    skill_failures: list[dict[str, str]] = Field(default_factory=list)
     requires_planning: bool = False
     brief: TripBriefPayload | None = None
-    draft: TripBriefExtraction | None = None
+    draft: PlanningDraft | None = None
+    date_assumptions: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
     questions: list[str] = Field(default_factory=list)
     model_name: str = ""

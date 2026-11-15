@@ -5,7 +5,6 @@ import {
   FileText,
   History,
   Image,
-  LoaderCircle,
   MapPin,
   MessageSquarePlus,
   Sparkles,
@@ -19,6 +18,7 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 
 import FlowerActionButton from "../components/FlowerActionButton.vue";
 import LeafActionButton from "../components/LeafActionButton.vue";
+import ThinkingLoader from "../components/ThinkingLoader.vue";
 import { travelChatApi } from "../features/chat/agentApi";
 import { conversationApi } from "../features/chat/api";
 import TravelPlanCard from "../features/chat/TravelPlanCard.vue";
@@ -51,6 +51,7 @@ const conversationStore = useConversationStore();
 const {
   messages,
   requirementHistory,
+  planningDraft,
   conversationId,
   conversationVersion,
   conversationTripId,
@@ -66,12 +67,13 @@ const composerShrinking = ref(false);
 const error = ref("");
 const guestLoginPromptOpen = ref(false);
 const messageCursor = ref(0);
+const conversationThread = ref<HTMLElement | null>(null);
 const conversationEnd = ref<HTMLElement | null>(null);
 const historyOpen = ref(false);
 const historyLoading = ref(false);
 const historyError = ref("");
 const persistenceError = ref("");
-let persistenceQueue: Promise<unknown> = Promise.resolve();
+let persistenceQueue: Promise<boolean> = Promise.resolve(true);
 const GUEST_DRAFT_KEY = "tripmate.guest-prompt-draft";
 
 const suggestions = [
@@ -91,6 +93,9 @@ const composerActionLabel = computed(() => {
   return hasConversation.value ? "发送" : "开始规划";
 });
 const activeDraft = computed(() => {
+  if (Object.keys(planningDraft.value).length > 0) {
+    return planningDraft.value;
+  }
   for (let index = messages.value.length - 1; index >= 0; index -= 1) {
     const draft = messages.value[index]?.draft;
     if (draft) return draft;
@@ -118,11 +123,27 @@ function conversationTitle(): string {
   return firstAttachment?.slice(0, 80) || "新的旅行对话";
 }
 
+async function savePlanningTrip(
+  brief: TripBrief,
+): Promise<Trip> {
+  if (!auth.token) throw new Error("Not authenticated");
+  const activeTripId = conversationTripId.value;
+  if (!activeTripId) {
+    return tripApi.create(auth.token, { brief });
+  }
+  const existing = await tripApi.get(auth.token, activeTripId);
+  return tripApi.update(auth.token, activeTripId, {
+    expected_version: existing.version,
+    brief,
+  });
+}
+
 function snapshotPayload(): ConversationPayload {
   return {
     title: conversationTitle(),
     messages: messages.value.map(serializeMessage),
     requirement_history: [...requirementHistory.value],
+    planning_draft: planningDraft.value,
     trip_id: conversationTripId.value,
   };
 }
@@ -143,21 +164,35 @@ function serializeMessage(message: ChatMessage): ConversationMessagePayload {
     intent: message.intent,
     sources: message.sources,
     used_tools: message.usedTools,
-    attachments: message.attachments,
+    attachments: message.attachments?.map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      mime_type: attachment.mime_type,
+      kind: attachment.kind,
+      size_bytes: attachment.size_bytes,
+    })),
   };
 }
 
 function travelHistory(): TravelChatHistoryTurn[] {
   return messages.value
-    .filter(
-      (message): message is ChatMessage & { text: string } =>
-        Boolean(message.text?.trim()),
-    )
+    .map((message) => {
+      const parts: string[] = [];
+      if (message.text?.trim()) parts.push(message.text.trim());
+      if (message.questions?.length) {
+        parts.push(`待确认：${message.questions.join("；")}`);
+      }
+      if (message.draft) {
+        parts.push(`当前规划草稿：${JSON.stringify(message.draft)}`);
+      }
+      return {
+        role: message.role,
+        content: parts.join("\n").slice(0, 8_000),
+      };
+    })
+    .filter((message) => Boolean(message.content))
     .slice(-12)
-    .map((message) => ({
-      role: message.role,
-      content: message.text.trim().slice(0, 8_000),
-    }));
+    .map((message) => message as TravelChatHistoryTurn);
 }
 
 function sourceLabel(source: ChatSourceCitation): string {
@@ -209,9 +244,9 @@ function answerBlocks(text: string | undefined): Array<{
     });
 }
 
-function persistConversation(): Promise<void> {
+function persistConversation(): Promise<boolean> {
   const token = auth.token;
-  if (!token) return Promise.resolve();
+  if (!token) return Promise.resolve(false);
   const payload = snapshotPayload();
   persistenceQueue = persistenceQueue
     .then(async () => {
@@ -230,11 +265,13 @@ function persistConversation(): Promise<void> {
         conversationVersion.value = created.version;
         window.sessionStorage.setItem(ACTIVE_CONVERSATION_KEY, created.id);
       }
+      return true;
     })
     .catch(() => {
       persistenceError.value = "历史对话暂时无法保存，请稍后重试。";
+      return false;
     });
-  return persistenceQueue.then(() => undefined);
+  return persistenceQueue;
 }
 
 async function refreshHistory(): Promise<void> {
@@ -285,9 +322,24 @@ async function openHistory(): Promise<void> {
 
 async function scrollToLatest(): Promise<void> {
   await nextTick();
-  if (typeof conversationEnd.value?.scrollIntoView === "function") {
+  if (conversationThread.value) {
+    if (typeof conversationThread.value.scrollTo === "function") {
+      conversationThread.value.scrollTo({
+        top: conversationThread.value.scrollHeight,
+        behavior: "smooth",
+      });
+    } else {
+      conversationThread.value.scrollTop =
+        conversationThread.value.scrollHeight;
+    }
+  } else if (typeof conversationEnd.value?.scrollIntoView === "function") {
     conversationEnd.value.scrollIntoView({ behavior: "smooth", block: "end" });
   }
+}
+
+function removeMessage(id: number): void {
+  const index = messages.value.findIndex((message) => message.id === id);
+  if (index >= 0) messages.value.splice(index, 1);
 }
 
 async function pollJob(jobId: string): Promise<PlanningJob> {
@@ -484,7 +536,21 @@ async function submitPrompt(): Promise<void> {
   prompt.value = "";
   clearPendingAttachments();
   composerShrinking.value = false;
-  void persistConversation();
+  const persisted = await persistConversation();
+  if (!persisted || !conversationId.value) {
+    error.value = "对话上下文保存失败，请稍后重试。";
+    busy.value = false;
+    return;
+  }
+  await scrollToLatest();
+
+  const thinkingId = nextId();
+  messages.value.push({
+    id: thinkingId,
+    role: "assistant",
+    kind: "working",
+    text: "正在理解你的问题",
+  });
   await scrollToLatest();
 
   try {
@@ -494,8 +560,12 @@ async function submitPrompt(): Promise<void> {
       text || `请根据附件理解旅行需求：${uploaded.map((asset) => asset.name).join("、")}`,
       uploaded.map((asset) => asset.id),
       history,
+      conversationId.value,
+      new Date(),
     );
+    removeMessage(thinkingId);
     if (chat.questions.length > 0) {
+      if (chat.draft) planningDraft.value = chat.draft;
       messages.value.push({
         id: nextId(),
         role: "assistant",
@@ -505,10 +575,11 @@ async function submitPrompt(): Promise<void> {
         draft: chat.draft || undefined,
         intent: chat.intent,
       });
-      void persistConversation();
+      await persistConversation();
       return;
     }
     if (!chat.requires_planning || !chat.brief) {
+      if (chat.draft) planningDraft.value = chat.draft;
       messages.value.push({
         id: nextId(),
         role: "assistant",
@@ -517,24 +588,30 @@ async function submitPrompt(): Promise<void> {
         intent: chat.intent,
         sources: chat.sources,
         usedTools: chat.used_tools,
+        draft: chat.draft || undefined,
       });
-      void persistConversation();
+      await persistConversation();
       return;
     }
 
+    if (chat.draft) planningDraft.value = chat.draft;
+    const updatingExistingTrip = Boolean(conversationTripId.value);
     const workingId = nextId();
     messages.value.push({
       id: workingId,
       role: "assistant",
       kind: "working",
-      text: "正在检索地点并生成行程",
+      text: updatingExistingTrip
+        ? "正在更新旅行方案并重新规划"
+        : "正在检索地点并生成行程",
       draft: chat.draft || undefined,
       intent: chat.intent,
     });
-    void persistConversation();
+    await persistConversation();
 
-    const trip = await tripApi.create(auth.token, { brief: chat.brief });
+    const trip = await savePlanningTrip(chat.brief);
     conversationTripId.value = trip.id;
+    planningDraft.value = trip.brief;
     const pendingIndex = messages.value.findIndex(
       (message) => message.id === workingId,
     );
@@ -544,7 +621,7 @@ async function submitPrompt(): Promise<void> {
         trip,
       };
     }
-    void persistConversation();
+    await persistConversation();
     const started = await planningApi.start(
       auth.token,
       trip.id,
@@ -560,11 +637,12 @@ async function submitPrompt(): Promise<void> {
         jobId: started.job_id,
       };
     }
-    void persistConversation();
+    await persistConversation();
     const job = await pollJob(started.job_id);
     await finalizeWorkingMessage(workingId, trip, job);
     await refreshHistory();
   } catch (cause) {
+    removeMessage(thinkingId);
     error.value =
       cause instanceof Error && cause.message
         ? cause.message
@@ -623,7 +701,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="home-page">
+  <main class="home-page" :class="{ 'home-page--thread': hasConversation }">
     <video
       class="home-backdrop-video"
       autoplay
@@ -753,7 +831,11 @@ onMounted(async () => {
           </div>
         </header>
 
-        <div class="agent-thread" aria-live="polite">
+        <div
+          ref="conversationThread"
+          class="agent-thread"
+          aria-live="polite"
+        >
           <template v-for="message in messages" :key="message.id">
             <div
               v-if="message.role === 'user'"
@@ -803,10 +885,10 @@ onMounted(async () => {
               </template>
 
               <template v-else-if="message.kind === 'working'">
-                <span class="agent-working-mark">
-                  <LoaderCircle :size="16" :stroke-width="1.8" class="is-spinning" />
-                </span>
-                <span>{{ message.text }}</span>
+                <div class="agent-thinking" role="status">
+                  <ThinkingLoader />
+                  <span>{{ message.text }}</span>
+                </div>
               </template>
 
               <template v-else-if="message.kind === 'plan' && message.trip && message.itinerary">

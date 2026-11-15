@@ -9,9 +9,13 @@
 | Agent | 能力 | Prompt ID | 版本 | 文件 |
 | --- | --- | --- | --- | --- |
 | `requirement-parser` | 旅行需求解析 | `system` | `1.0.0` | `apps/api/prompts/agents/requirement-parser/system/1.0.0.md` |
+| `requirement-parser` | 旅行需求解析 | `system` | `1.1.0` | `apps/api/prompts/agents/requirement-parser/system/1.1.0.md` |
 | `research-planner` | 地点研究 Tool 选择 | `tool-selection` | `1.0.0` | `apps/api/prompts/agents/research-planner/tool-selection/1.0.0.md` |
 | `itinerary-composer` | 行程编排 | `system` | `1.0.0` | `apps/api/prompts/agents/itinerary-composer/system/1.0.0.md` |
 | `travel-chat` | 旅行意图路由 | `intent-router` | `1.0.0` | `apps/api/prompts/agents/travel-chat/intent-router/1.0.0.md` |
+| `travel-chat` | 旅行意图路由 | `intent-router` | `1.1.0` | `apps/api/prompts/agents/travel-chat/intent-router/1.1.0.md` |
+| `travel-chat` | 旅行意图路由 | `intent-router` | `1.2.0` | `apps/api/prompts/agents/travel-chat/intent-router/1.2.0.md` |
+| `travel-chat` | 旅行意图路由 | `intent-router` | `1.3.0` | `apps/api/prompts/agents/travel-chat/intent-router/1.3.0.md` |
 | `travel-chat` | 旅行问答与 Web 来源 | `answer` | `1.0.0` | `apps/api/prompts/agents/travel-chat/answer/1.0.0.md` |
 
 ## 动态提示词构造位置

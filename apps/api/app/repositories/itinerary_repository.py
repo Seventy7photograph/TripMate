@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from typing import Literal, cast
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.itinerary import ItineraryStop, SourceMetadata, TripDay
@@ -72,6 +72,12 @@ class ItineraryRepository:
             )
         )
         return result.scalar_one_or_none() is not None
+
+    async def delete_days_for_trip(self, *, trip_id: UUID) -> None:
+        await self._session.execute(
+            delete(TripDayModel).where(TripDayModel.trip_id == trip_id)
+        )
+        await self._session.flush()
 
     async def create_day(
         self,

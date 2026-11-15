@@ -59,6 +59,12 @@ class EnabledConnectorState:
         )
 
 
+class DisabledConnectorState(EnabledConnectorState):
+    async def is_enabled(self, connector_id: str) -> bool:
+        del connector_id
+        return False
+
+
 class NeverCalledClient:
     async def call_tool(self, **kwargs: object) -> object:
         del kwargs
@@ -165,3 +171,33 @@ async def test_mcp_transport_failure_falls_back_to_existing_provider_tool() -> N
     assert result.fallback_used is True
     assert "开元寺" in result.data["results"][0]["name"]  # type: ignore[index]
     assert context.runner.call_count == 2
+
+
+async def test_disabled_mcp_connector_uses_local_provider_fallback() -> None:
+    context = tool_context(max_calls=5)
+    settings = Settings(
+        app_env="test",
+        mcp_gateway_enabled=True,
+        mcp_allowed_connectors="amap",
+        mcp_amap_endpoint="https://mcp.example.test/amap",
+    )
+    tools = ToolRegistry()
+    provider = MockMapProvider()
+    tools.register(PlaceTool.spec(), PlaceTool(provider, context).invoke)
+    gateway = McpGateway(
+        settings=settings,
+        connector_registry=McpConnectorRegistry(settings),
+        tool_registry=tools,
+        client=cast(object, NeverCalledClient()),  # type: ignore[arg-type]
+        state_store=DisabledConnectorState(),
+    )
+
+    result = await gateway.call_tool(
+        context,
+        "amap",
+        "search_places",
+        {"keyword": "开元寺", "city": "泉州", "limit": 1},
+    )
+
+    assert result.fallback_used is True
+    assert "开元寺" in result.data["results"][0]["name"]  # type: ignore[index]

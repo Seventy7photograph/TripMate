@@ -126,6 +126,11 @@ describe("admin API", () => {
   it("loads and toggles MCP connectors", async () => {
     const connector = {
       connector_id: "amap",
+      display_name: "高德地点 MCP",
+      purpose: "真实地点搜索",
+      boundary: "固定服务端 endpoint",
+      tools: ["search_places"],
+      configured: true,
       enabled: false,
       status: "disabled",
       latency_ms: 0,
@@ -135,6 +140,7 @@ describe("admin API", () => {
       daily_quota: 1000,
       rate_limit_per_minute: 60,
       window_calls: 3,
+      as_of: "2026-11-15T00:00:00Z",
     };
     const fetchMock = vi
       .fn()
@@ -160,6 +166,37 @@ describe("admin API", () => {
         method: "POST",
         body: JSON.stringify({ enabled: true, reason: "rollout" }),
       }),
+    );
+  });
+
+  it("runs a real MCP connector health check", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        connector_id: "amap",
+        display_name: "高德地点 MCP",
+        purpose: "真实地点搜索",
+        boundary: "固定服务端 endpoint",
+        tools: ["search_places"],
+        configured: true,
+        enabled: true,
+        status: "healthy",
+        latency_ms: 120,
+        last_error_code: null,
+        checked_at: "2026-11-15T00:00:00Z",
+        requests_today: 12,
+        daily_quota: 1000,
+        rate_limit_per_minute: 60,
+        window_calls: 3,
+        as_of: "2026-11-15T00:00:00Z",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await adminApi.checkMcpConnector("token", "amap");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/admin/mcp-connectors/amap/check",
+      expect.objectContaining({ method: "POST" }),
     );
   });
 

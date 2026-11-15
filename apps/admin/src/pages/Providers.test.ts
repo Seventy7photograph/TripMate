@@ -19,6 +19,11 @@ vi.mock("../api", () => ({
 
 const connector = {
   connector_id: "amap",
+  display_name: "高德地点 MCP",
+  purpose: "真实地点搜索",
+  boundary: "固定服务端 endpoint",
+  tools: ["search_places"],
+  configured: true,
   enabled: false,
   status: "disabled" as const,
   latency_ms: 0,
@@ -28,6 +33,7 @@ const connector = {
   daily_quota: 1000,
   rate_limit_per_minute: 60,
   window_calls: 2,
+  as_of: "2026-11-15T00:00:00Z",
 };
 
 describe("Providers admin page", () => {

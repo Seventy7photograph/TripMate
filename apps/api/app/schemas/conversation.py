@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.chat import ChatSourceCitation
+from app.schemas.planning_draft import PlanningDraft
 
 MAX_CONVERSATION_MESSAGES = 200
 MAX_CONVERSATION_REQUIREMENTS = 200
@@ -16,10 +17,16 @@ MAX_CONVERSATION_BYTES = 2_000_000
 def validate_transcript_size(
     messages: list["ConversationMessage"],
     requirement_history: list[str],
+    planning_draft: PlanningDraft | None = None,
 ) -> None:
     payload = {
         "messages": [message.model_dump(mode="json") for message in messages],
         "requirement_history": requirement_history,
+        "planning_draft": (
+            None
+            if planning_draft is None
+            else planning_draft.model_dump(mode="json")
+        ),
     }
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
     if len(encoded) > MAX_CONVERSATION_BYTES:
@@ -71,6 +78,7 @@ class ConversationCreateRequest(BaseModel):
         default_factory=list,
         max_length=MAX_CONVERSATION_REQUIREMENTS,
     )
+    planning_draft: PlanningDraft = Field(default_factory=PlanningDraft)
     trip_id: UUID | None = None
 
     @field_validator("requirement_history")
@@ -83,7 +91,11 @@ class ConversationCreateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_size(self) -> "ConversationCreateRequest":
-        validate_transcript_size(self.messages, self.requirement_history)
+        validate_transcript_size(
+            self.messages,
+            self.requirement_history,
+            self.planning_draft,
+        )
         return self
 
 
@@ -98,6 +110,7 @@ class ConversationUpdateRequest(BaseModel):
     requirement_history: list[str] = Field(
         max_length=MAX_CONVERSATION_REQUIREMENTS,
     )
+    planning_draft: PlanningDraft | None = None
     trip_id: UUID | None = None
 
     @field_validator("requirement_history")
@@ -107,7 +120,11 @@ class ConversationUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_size(self) -> "ConversationUpdateRequest":
-        validate_transcript_size(self.messages, self.requirement_history)
+        validate_transcript_size(
+            self.messages,
+            self.requirement_history,
+            self.planning_draft,
+        )
         return self
 
 
@@ -118,6 +135,7 @@ class ConversationResponse(BaseModel):
     title: str
     messages: list[ConversationMessage]
     requirement_history: list[str]
+    planning_draft: dict[str, Any]
     trip_id: UUID | None
     version: int
     message_count: int
@@ -131,6 +149,7 @@ class ConversationSummaryResponse(BaseModel):
     id: UUID
     title: str
     trip_id: UUID | None
+    planning_draft: dict[str, Any]
     version: int
     message_count: int
     preview: str

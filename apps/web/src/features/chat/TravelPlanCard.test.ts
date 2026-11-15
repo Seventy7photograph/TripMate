@@ -17,6 +17,11 @@ const brief = {
   interests: ["古建"],
   pace: "balanced" as const,
   transport_preferences: [],
+  transport_strategy: {
+    strategy: "unspecified" as const,
+    segments: [],
+    constraints: [],
+  },
   lodging_preferences: [],
   must_visit: [],
   avoid: [],

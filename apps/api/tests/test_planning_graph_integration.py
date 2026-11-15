@@ -73,7 +73,14 @@ async def test_planning_service_persists_langgraph_result_and_audits(
     assert run.provider == "mock"
     assert run.model_name == "mock-langgraph-composer"
     assert run.tool_call_count == job["tool_call_count"]
-    assert run.skills_used == []
+    assert {
+        item["name"] for item in run.skills_used
+    } >= {
+        "destination-research",
+        "route-optimization",
+        "budget-optimization",
+        "travel-memory",
+    }
     assert run.skill_route is not None
     assert run.skill_route["intent"] == "create_trip_plan"
     assert "route-optimization" in run.skill_route["selected_skills"]
@@ -182,6 +189,38 @@ async def test_conversation_plan_can_be_applied_to_itinerary_for_map(
     )
     assert map_response.status_code == 200
     assert map_response.headers["content-type"].startswith("image/")
+
+    old_day_ids = {day["id"] for day in days}
+    old_version = itinerary.json()["version"]
+    replanned = await api_client.post(
+        f"/api/v1/trips/{trip['id']}/plan",
+        headers=auth_headers(token),
+        json={"expected_version": old_version, "apply_to_itinerary": True},
+    )
+    assert replanned.status_code == 202, replanned.text
+    replacement_job = (
+        await api_client.get(
+            f"/api/v1/jobs/{replanned.json()['job_id']}",
+            headers=auth_headers(token),
+        )
+    ).json()
+    assert replacement_job["status"] == "completed"
+
+    replaced = await api_client.get(
+        f"/api/v1/trips/{trip['id']}/itinerary",
+        headers=auth_headers(token),
+    )
+    assert replaced.status_code == 200
+    replaced_payload = replaced.json()
+    assert replaced_payload["version"] == old_version + 1
+    assert {day["id"] for day in replaced_payload["days"]}.isdisjoint(old_day_ids)
+
+    versions = await api_client.get(
+        f"/api/v1/trips/{trip['id']}/versions",
+        headers=auth_headers(token),
+    )
+    assert versions.status_code == 200
+    assert old_version in {item["version"] for item in versions.json()["versions"]}
 
 
 async def test_planning_job_is_queued_then_executed_by_worker(

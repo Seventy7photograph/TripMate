@@ -20,6 +20,7 @@ class McpToolBinding(BaseModel):
 
     name: str = Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=80)
     provider_type: Literal["map", "weather"]
+    output_kind: Literal["place_search", "weather_snapshot"] = "place_search"
 
 
 class McpConnectorDefinition(BaseModel):
@@ -33,6 +34,11 @@ class McpConnectorDefinition(BaseModel):
 
 class McpConnectionState(BaseModel):
     connector_id: str
+    display_name: str = ""
+    purpose: str = ""
+    boundary: str = ""
+    tools: list[str] = Field(default_factory=list)
+    configured: bool = False
     enabled: bool
     status: McpConnectorStatus
     latency_ms: int = Field(ge=0)
@@ -42,6 +48,7 @@ class McpConnectionState(BaseModel):
     daily_quota: int = Field(default=0, ge=0)
     rate_limit_per_minute: int = Field(default=0, ge=0)
     window_calls: int = Field(default=0, ge=0)
+    as_of: datetime | None = None
 
 
 class McpRemoteResult(BaseModel):

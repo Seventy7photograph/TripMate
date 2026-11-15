@@ -31,6 +31,11 @@ const trip: Trip = {
     interests: ["美食"],
     pace: "balanced",
     transport_preferences: [],
+    transport_strategy: {
+      strategy: "unspecified",
+      segments: [],
+      constraints: [],
+    },
     lodging_preferences: [],
     must_visit: [],
     avoid: [],

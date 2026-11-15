@@ -30,7 +30,8 @@ output_schema:
   additionalProperties: false
 allowed_tools:
   - search_places
-allowed_mcp_connectors: []
+allowed_mcp_connectors:
+  - amap
 max_tool_calls: 4
 timeout_seconds: 30
 max_tokens: 4000

@@ -1,4 +1,5 @@
 # 文件说明：业务服务：route_service。
+import time
 from dataclasses import dataclass, replace
 from uuid import UUID
 
@@ -23,6 +24,7 @@ from app.repositories.route_repository import (
     route_coordinate_hash,
 )
 from app.services.place_service import create_map_provider
+from app.services.provider_health_service import ProviderHealthService
 from app.services.version_service import VersionService, VersionTripNotFoundError
 
 
@@ -69,6 +71,7 @@ class RouteService:
         self._routes = RouteRepository(session)
         self._itinerary = ItineraryRepository(session)
         self._versions = VersionService(session)
+        self._health = ProviderHealthService(session)
 
     async def calculate(
         self,
@@ -140,13 +143,26 @@ class RouteService:
                     )
                     continue
 
-                route = await self._provider.get_route(
-                    RouteRequest(
-                        origin=origin.location,
-                        destination=destination.location,
-                        mode=leg_mode,
-                        city=city,
+                started = time.perf_counter()
+                try:
+                    route = await self._provider.get_route(
+                        RouteRequest(
+                            origin=origin.location,
+                            destination=destination.location,
+                            mode=leg_mode,
+                            city=city,
+                        )
                     )
+                except ProviderError as exc:
+                    await self._record_health(
+                        status="degraded",
+                        started=started,
+                        error_code=exc.code,
+                    )
+                    raise
+                await self._record_health(
+                    status="healthy",
+                    started=started,
                 )
                 legs.append(
                     await self._routes.upsert(
@@ -231,17 +247,46 @@ class RouteService:
             longitude=sum(marker.point.longitude for marker in markers) / len(markers),
             latitude=sum(marker.point.latitude for marker in markers) / len(markers),
         )
-        image = await self._provider.render_static_map(
-            StaticMapRequest(
-                markers=markers,
-                paths=paths,
-                center=center,
-                zoom=zoom,
-                width=900,
-                height=520,
+        started = time.perf_counter()
+        try:
+            image = await self._provider.render_static_map(
+                StaticMapRequest(
+                    markers=markers,
+                    paths=paths,
+                    center=center,
+                    zoom=zoom,
+                    width=900,
+                    height=520,
+                )
             )
-        )
+        except ProviderError as exc:
+            await self._record_health(
+                status="degraded",
+                started=started,
+                error_code=exc.code,
+            )
+            raise
+        await self._record_health(status="healthy", started=started)
         return MapRenderOutcome(image=image, route_available=route_available)
+
+    async def _record_health(
+        self,
+        *,
+        status: str,
+        started: float,
+        error_code: str | None = None,
+    ) -> None:
+        await self._health.record(
+            provider_key="map_provider",
+            provider_type="map",
+            provider_name=self._provider.name,
+            status=status,
+            latency_ms=max(
+                1,
+                int((time.perf_counter() - started) * 1_000),
+            ),
+            error_code=error_code,
+        )
 
     async def _day_for_write(
         self,

@@ -1,6 +1,7 @@
 # 文件说明：业务服务：place_service。
 import hashlib
 import json
+import time
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
@@ -14,12 +15,12 @@ from app.providers.base import (
     PlaceQuery,
     PlaceResult,
     ProviderConfigurationError,
-    RouteRequest,
-    RouteResult,
+    ProviderError,
     normalize_category_text,
 )
 from app.providers.mock_map import MockMapProvider
 from app.repositories.place_repository import PlaceRepository
+from app.services.provider_health_service import ProviderHealthService
 
 
 class PlaceNotFoundError(Exception):
@@ -75,6 +76,7 @@ class PlaceService:
         self._settings = settings
         self._provider = provider or create_map_provider(settings)
         self._places = PlaceRepository(session)
+        self._health = ProviderHealthService(session)
 
     @property
     def provider_name(self) -> str:
@@ -119,7 +121,18 @@ class PlaceService:
                     results=cached_results,
                 )
 
-        results = await self._provider.search_places(query)
+        started = time.perf_counter()
+        try:
+            results = await self._provider.search_places(query)
+        except ProviderError as exc:
+            await self._record_health(
+                status="degraded",
+                started=started,
+                error_code=exc.code,
+            )
+            await self._session.commit()
+            raise
+        await self._record_health(status="healthy", started=started)
         stored_results = [await self._places.upsert_place(place) for place in results]
         if self._provider.name != "mock" and self._settings.place_cache_ttl_seconds > 0:
             fetched_at = datetime.now(UTC)
@@ -152,7 +165,18 @@ class PlaceService:
                     source=replace(cached.source, freshness="cached"),
                 )
         try:
-            result = await self._provider.get_place(provider_place_id)
+            started = time.perf_counter()
+            try:
+                result = await self._provider.get_place(provider_place_id)
+            except ProviderError as exc:
+                await self._record_health(
+                    status="degraded",
+                    started=started,
+                    error_code=exc.code,
+                )
+                await self._session.commit()
+                raise
+            await self._record_health(status="healthy", started=started)
         except KeyError as exc:
             raise PlaceNotFoundError from exc
         stored = await self._places.upsert_place(result)
@@ -160,10 +184,19 @@ class PlaceService:
         return stored
 
     async def geocode(self, address: str) -> GeoPoint:
-        return await self._provider.geocode(address)
-
-    async def route(self, request: RouteRequest) -> RouteResult:
-        return await self._provider.get_route(request)
+        started = time.perf_counter()
+        try:
+            point = await self._provider.geocode(address)
+        except ProviderError as exc:
+            await self._record_health(
+                status="degraded",
+                started=started,
+                error_code=exc.code,
+            )
+            await self._session.commit()
+            raise
+        await self._record_health(status="healthy", started=started)
+        return point
 
     def _place_cache_valid(self, place: PlaceResult) -> bool:
         if self._settings.place_cache_ttl_seconds <= 0:
@@ -189,3 +222,22 @@ class PlaceService:
         return hashlib.sha256(
             f"{self._provider.name}:{self._query_text(query)}".encode()
         ).hexdigest()
+
+    async def _record_health(
+        self,
+        *,
+        status: str,
+        started: float,
+        error_code: str | None = None,
+    ) -> None:
+        await self._health.record(
+            provider_key="map_provider",
+            provider_type="map",
+            provider_name=self._provider.name,
+            status=status,
+            latency_ms=max(
+                1,
+                int((time.perf_counter() - started) * 1_000),
+            ),
+            error_code=error_code,
+        )

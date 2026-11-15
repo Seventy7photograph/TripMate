@@ -4,6 +4,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import AdminUserDep, SessionDep, SettingsDep
+from app.mcp.client import OfficialMcpClient
+from app.mcp.gateway import McpGateway
+from app.mcp.registry import McpConnectorRegistry, McpNotAllowedError
 from app.schemas.admin import (
     AdminAgentRunListResponse,
     AdminAuditLogListResponse,
@@ -39,6 +42,7 @@ from app.services.model_config_service import (
     ModelStageNotFoundError,
 )
 from app.services.observability_service import ObservabilityService
+from app.skills.capabilities import skill_capability_snapshots
 from app.skills.manifest import SkillManifestError
 from app.skills.registry import (
     SkillNotFoundError,
@@ -46,6 +50,7 @@ from app.skills.registry import (
     load_configured_registry,
 )
 from app.skills.state_service import SkillStateService
+from app.tools.registry import ToolRegistry
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -214,6 +219,39 @@ async def toggle_mcp_connector(
     return AdminMcpConnectorResponse.model_validate(state)
 
 
+@router.post(
+    "/mcp-connectors/{connector_id}/check",
+    response_model=AdminMcpConnectorResponse,
+)
+async def check_mcp_connector(
+    connector_id: str,
+    _: AdminUserDep,
+    session: SessionDep,
+    settings: SettingsDep,
+    service: McpConnectorServiceDep,
+) -> AdminMcpConnectorResponse:
+    try:
+        definition = McpConnectorRegistry(settings).resolve(connector_id)
+    except McpNotAllowedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "mcp_connector_not_ready",
+                "message": "MCP connector is disabled or has no endpoint",
+            },
+        ) from exc
+    gateway = McpGateway(
+        settings=settings,
+        connector_registry=McpConnectorRegistry(settings),
+        tool_registry=ToolRegistry(),
+        client=OfficialMcpClient(),
+        state_store=service,
+    )
+    state = await gateway.connect(definition.endpoint)
+    await session.commit()
+    return AdminMcpConnectorResponse.model_validate(state)
+
+
 @router.get("/features", response_model=FeatureFlagListResponse)
 async def list_features(
     _: AdminUserDep,
@@ -324,11 +362,24 @@ async def update_model_config(
 
 @router.get("/skills", response_model=SkillListResponse)
 async def list_skills(
-    _: AdminUserDep,
-    registry: SkillRegistryDep,
-    service: SkillStateServiceDep,
+    current_user: AdminUserDep,
+    session: SessionDep,
+    settings: SettingsDep,
 ) -> SkillListResponse:
-    views = await service.skill_views(registry)
+    try:
+        views = await skill_capability_snapshots(
+            session=session,
+            settings=settings,
+            owner_id=current_user.id,
+        )
+    except SkillManifestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "skill_registry_invalid",
+                "message": "Skill registry configuration is invalid",
+            },
+        ) from exc
     return SkillListResponse(
         items=[SkillResponse.model_validate(view) for view in views]
     )
@@ -342,11 +393,13 @@ async def toggle_skill(
     skill_name: str,
     payload: SkillToggleRequest,
     current_user: AdminUserDep,
+    session: SessionDep,
+    settings: SettingsDep,
     registry: SkillRegistryDep,
     service: SkillStateServiceDep,
 ) -> SkillResponse:
     try:
-        manifest = registry.get(skill_name)
+        manifest = registry.get(skill_name, payload.version)
     except SkillNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -363,6 +416,10 @@ async def toggle_skill(
         reason=payload.reason,
         default_enabled=manifest.status == "active",
     )
-    views = await service.skill_views(registry)
+    views = await skill_capability_snapshots(
+        session=session,
+        settings=settings,
+        owner_id=current_user.id,
+    )
     view = next(item for item in views if item.name == skill_name)
     return SkillResponse.model_validate(view)

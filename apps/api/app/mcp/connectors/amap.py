@@ -27,6 +27,7 @@ def amap_connector_definition(endpoint: str) -> McpConnectorDefinition:
             McpToolBinding(
                 name=spec.name,
                 provider_type="map",
+                output_kind="place_search",
             ),
         ),
     )

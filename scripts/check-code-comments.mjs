@@ -1,6 +1,6 @@
 // 文件说明：校验所有手写代码文件是否包含中文“文件说明”头注释。
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const extensions = new Set([
   ".css",
@@ -22,7 +22,8 @@ const listed = execFileSync(
 )
   .split(/\r?\n/)
   .filter(Boolean)
-  .filter((file) => extensions.has(file.slice(file.lastIndexOf("."))));
+  .filter((file) => extensions.has(file.slice(file.lastIndexOf("."))))
+  .filter((file) => existsSync(file));
 
 const missing = listed.filter((file) => {
   const header = readFileSync(file, "utf8").split(/\r?\n/, 5).join("\n");

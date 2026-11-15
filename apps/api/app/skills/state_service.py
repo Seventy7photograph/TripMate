@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.skill_state import SkillState
 from app.skills.manifest import SkillManifest, SkillStatus
-from app.skills.registry import SkillRegistry
+from app.skills.registry import SkillNotFoundError, SkillRegistry
 
 
 @dataclass(frozen=True, slots=True)
 class SkillView:
     name: str
+    available_versions: list[str]
     version: str
     status: SkillStatus
     description: str
@@ -86,21 +87,29 @@ class SkillStateService:
         self,
         registry: SkillRegistry,
     ) -> list[SkillManifest]:
-        manifests = registry.latest_manifests()
         states = await self._state_map()
-        return [
-            manifest
-            for manifest in manifests
-            if _effective_enabled(manifest, states.get(manifest.name))
-        ]
+        enabled: list[SkillManifest] = []
+        for latest in registry.latest_manifests():
+            state = states.get(latest.name)
+            manifest = _selected_manifest(registry, latest, state)
+            if _effective_enabled(manifest, state):
+                enabled.append(manifest)
+        return enabled
 
     async def skill_views(self, registry: SkillRegistry) -> list[SkillView]:
-        manifests = registry.latest_manifests()
         states = await self._state_map()
-        return [
-            _skill_view(manifest, states.get(manifest.name))
-            for manifest in manifests
-        ]
+        views: list[SkillView] = []
+        for latest in registry.latest_manifests():
+            state = states.get(latest.name)
+            manifest = _selected_manifest(registry, latest, state)
+            views.append(
+                _skill_view(
+                    manifest,
+                    state,
+                    available_versions=registry.versions(manifest.name),
+                )
+            )
+        return views
 
     async def _state_map(self) -> dict[str, SkillState]:
         result = await self._session.execute(select(SkillState))
@@ -121,10 +130,13 @@ def _effective_enabled(
 def _skill_view(
     manifest: SkillManifest,
     state: SkillState | None,
+    *,
+    available_versions: list[str],
 ) -> SkillView:
     state_matches = state is not None and state.version == manifest.version
     return SkillView(
         name=manifest.name,
+        available_versions=available_versions,
         version=manifest.version,
         status=manifest.status,
         description=manifest.description,
@@ -140,3 +152,16 @@ def _skill_view(
         updated_by=state.updated_by if state_matches and state is not None else None,
         updated_at=state.updated_at if state_matches and state is not None else None,
     )
+
+
+def _selected_manifest(
+    registry: SkillRegistry,
+    latest: SkillManifest,
+    state: SkillState | None,
+) -> SkillManifest:
+    if state is None:
+        return latest
+    try:
+        return registry.get(latest.name, state.version)
+    except SkillNotFoundError:
+        return latest

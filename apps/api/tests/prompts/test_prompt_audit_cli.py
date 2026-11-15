@@ -13,12 +13,18 @@ def test_prompt_audit_reports_agent_versions_and_inventory_status() -> None:
         PROJECT_ROOT / "apps/api/prompts/INVENTORY.md",
     )
 
-    assert report.prompt_count == 5
+    assert report.prompt_count == 9
     assert report.agent_versions == {
         "itinerary-composer": ["system@1.0.0"],
-        "requirement-parser": ["system@1.0.0"],
+        "requirement-parser": ["system@1.0.0", "system@1.1.0"],
         "research-planner": ["tool-selection@1.0.0"],
-        "travel-chat": ["answer@1.0.0", "intent-router@1.0.0"],
+        "travel-chat": [
+            "answer@1.0.0",
+            "intent-router@1.0.0",
+            "intent-router@1.1.0",
+            "intent-router@1.2.0",
+            "intent-router@1.3.0",
+        ],
     }
     assert report.errors == []
 
@@ -34,5 +40,5 @@ def test_prompt_audit_fails_when_inventory_is_missing_an_entry(
         inventory,
     )
 
-    assert len(report.errors) == 5
+    assert len(report.errors) == 9
     assert all("not listed" in error for error in report.errors)

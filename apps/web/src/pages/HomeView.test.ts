@@ -25,7 +25,9 @@ vi.mock("../features/chat/agentApi", () => ({
 
 vi.mock("../features/trips/api", () => ({
   tripApi: {
+    get: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
   },
 }));
 
@@ -75,6 +77,11 @@ const brief = {
   interests: ["美食"],
   pace: "balanced" as const,
   transport_preferences: [],
+  transport_strategy: {
+    strategy: "unspecified" as const,
+    segments: [],
+    constraints: [],
+  },
   lodging_preferences: [],
   must_visit: [],
   avoid: [],
@@ -93,11 +100,24 @@ describe("HomeView", () => {
       title: "重庆",
       messages: [],
       requirement_history: [],
+      planning_draft: {},
       trip_id: null,
       version: 1,
       message_count: 0,
       created_at: "2026-11-14T00:00:00Z",
       updated_at: "2026-11-14T00:00:00Z",
+    });
+    vi.mocked(conversationApi.update).mockResolvedValue({
+      id: "conversation-1",
+      title: "重庆",
+      messages: [],
+      requirement_history: [],
+      planning_draft: {},
+      trip_id: null,
+      version: 2,
+      message_count: 0,
+      created_at: "2026-11-14T00:00:00Z",
+      updated_at: "2026-11-14T00:00:01Z",
     });
     vi.clearAllMocks();
   });
@@ -151,6 +171,7 @@ describe("HomeView", () => {
         },
       ],
       requirement_history: ["去重庆"],
+      planning_draft: {},
       trip_id: "trip-1",
       version: 2,
       message_count: 2,
@@ -178,6 +199,7 @@ describe("HomeView", () => {
           id: "conversation-1",
           title: "重庆",
           preview: "去重庆",
+          planning_draft: {},
           trip_id: "trip-1",
           version: 2,
           message_count: 2,
@@ -208,6 +230,7 @@ describe("HomeView", () => {
           id: "conversation-1",
           title: "重庆",
           preview: "去重庆",
+          planning_draft: {},
           trip_id: null,
           version: 2,
           message_count: 1,
@@ -220,6 +243,7 @@ describe("HomeView", () => {
       title: "重庆",
       messages: [{ id: 1, role: "user", kind: "text", text: "去重庆" }],
       requirement_history: ["去重庆"],
+      planning_draft: {},
       trip_id: null,
       version: 2,
       message_count: 1,
@@ -247,6 +271,7 @@ describe("HomeView", () => {
           id: "conversation-old",
           title: "旧对话",
           preview: "上次旅行",
+          planning_draft: {},
           trip_id: null,
           version: 2,
           message_count: 1,
@@ -319,9 +344,138 @@ describe("HomeView", () => {
       "2026年12月1日到12月3日，2个人从上海去重庆，喜欢美食。",
       [],
       [],
+      "conversation-1",
+      expect.any(Date),
     );
     expect(wrapper.text()).toContain("这次旅行的总预算大约是多少？");
     expect(wrapper.text()).toContain("重庆");
+    expect(conversationApi.create).toHaveBeenCalledWith(
+      "token",
+      expect.objectContaining({ planning_draft: {} }),
+    );
+    expect(conversationApi.update).toHaveBeenCalledWith(
+      "token",
+      "conversation-1",
+      1,
+      expect.objectContaining({
+        planning_draft: expect.objectContaining({ destination: "重庆" }),
+      }),
+    );
+  });
+
+  it("sends active conversation and structured draft on the next turn", async () => {
+    vi.mocked(travelChatApi.respond)
+      .mockResolvedValueOnce({
+        intent: "clarify",
+        in_scope: true,
+        confidence: 0.9,
+        answer: null,
+        sources: [],
+        selected_skills: [],
+        used_tools: [],
+        requires_planning: false,
+        brief: null,
+        draft: {
+          destination: "云南",
+          date_context: { duration_days: 7 },
+        },
+        missing_fields: ["start_date", "party_size"],
+        questions: ["请提供出发日期。", "这次一共几个人？"],
+        model_name: "deepseek-flash",
+      })
+      .mockResolvedValueOnce({
+        intent: "plan_trip",
+        in_scope: true,
+        confidence: 0.92,
+        answer: null,
+        sources: [],
+        selected_skills: [],
+        used_tools: [],
+        requires_planning: false,
+        brief: null,
+        draft: {
+          destination: "云南",
+          party_size: 1,
+          start_date: "2026-11-16",
+          end_date: "2026-11-22",
+          date_context: { duration_days: 7 },
+        },
+        missing_fields: [],
+        questions: [],
+        model_name: "deepseek-flash",
+      });
+    const wrapper = mount(HomeView, {
+      global: {
+        stubs: {
+          RouterLink: { template: "<a><slot /></a>" },
+        },
+      },
+    });
+
+    await wrapper
+      .get("textarea")
+      .setValue("我想去云南玩一个星期，帮我规划一下");
+    const firstSubmit = wrapper.get("form").trigger("submit");
+    await vi.advanceTimersByTimeAsync(240);
+    await firstSubmit;
+    await flushPromises();
+
+    await wrapper.get("textarea").setValue("下个星期出发，我自己一个人");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    const secondCall = vi.mocked(travelChatApi.respond).mock.calls[1];
+    expect(secondCall?.[4]).toBe("conversation-1");
+    expect(secondCall?.[5]).toBeInstanceOf(Date);
+    expect(JSON.stringify(secondCall?.[3])).toContain("duration_days");
+    expect(JSON.stringify(secondCall?.[3])).toContain("请提供出发日期");
+  });
+
+  it("shows a thinking loader until the model response arrives", async () => {
+    let resolveChat:
+      | ((value: Awaited<ReturnType<typeof travelChatApi.respond>>) => void)
+      | undefined;
+    vi.mocked(travelChatApi.respond).mockReturnValue(
+      new Promise((resolve) => {
+        resolveChat = resolve;
+      }),
+    );
+    const wrapper = mount(HomeView, {
+      global: {
+        stubs: {
+          RouterLink: { template: "<a><slot /></a>" },
+        },
+      },
+    });
+
+    await wrapper.get("textarea").setValue("帮我看看这个安排是否合理");
+    const submitting = wrapper.get("form").trigger("submit");
+    await vi.advanceTimersByTimeAsync(240);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="thinking-loader"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("正在理解你的问题");
+
+    resolveChat?.({
+      intent: "travel_question",
+      in_scope: true,
+      confidence: 0.9,
+      answer: "这个安排整体合理。",
+      sources: [],
+      selected_skills: [],
+      used_tools: [],
+      requires_planning: false,
+      brief: null,
+      draft: null,
+      missing_fields: [],
+      questions: [],
+      model_name: "deepseek-flash",
+    });
+    await submitting;
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="thinking-loader"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("这个安排整体合理。");
   });
 
   it("uploads an attachment and passes its id to requirement parsing", async () => {
@@ -378,8 +532,21 @@ describe("HomeView", () => {
       "根据附件识别需求",
       ["asset-1"],
       [],
+      "conversation-1",
+      expect.any(Date),
     );
     expect(wrapper.text()).toContain("行程截图.png");
+    const persisted = vi.mocked(conversationApi.create).mock.calls.at(-1)?.[1];
+    const attachment = persisted?.messages.find(
+      (message) => message.attachments?.length,
+    )?.attachments?.[0];
+    expect(attachment).toEqual({
+      id: "asset-1",
+      name: "行程截图.png",
+      mime_type: "image/png",
+      kind: "image",
+      size_bytes: 128,
+    });
   });
 
   it("renders a sourced travel answer with folded citations", async () => {
@@ -535,6 +702,116 @@ describe("HomeView", () => {
     expect(wrapper.text()).toContain("已生成");
     expect(wrapper.text()).toContain("洪崖洞");
     expect(wrapper.text()).toContain("全屏地图");
+  });
+
+  it("updates the active trip instead of creating a duplicate", async () => {
+    const store = useConversationStore();
+    store.applyConversation({
+      id: "conversation-existing",
+      title: "重庆",
+      messages: [
+        {
+          id: 1,
+          role: "user",
+          kind: "text",
+          text: "规划重庆",
+        },
+      ],
+      requirement_history: ["规划重庆"],
+      planning_draft: brief,
+      trip_id: "trip-1",
+      version: 2,
+      message_count: 1,
+      created_at: "2026-11-14T00:00:00Z",
+      updated_at: "2026-11-14T00:00:00Z",
+    });
+    vi.mocked(travelChatApi.respond).mockResolvedValue({
+      intent: "plan_trip",
+      in_scope: true,
+      confidence: 0.95,
+      answer: null,
+      sources: [],
+      selected_skills: [],
+      used_tools: [],
+      requires_planning: true,
+      brief,
+      draft: brief,
+      missing_fields: [],
+      questions: [],
+      model_name: "deepseek-flash",
+    });
+    vi.mocked(tripApi.get).mockResolvedValue({
+      id: "trip-1",
+      owner_id: "user-1",
+      status: "ready",
+      version: 3,
+      brief,
+      created_at: "2026-11-14T00:00:00Z",
+      updated_at: "2026-11-14T00:00:00Z",
+    });
+    vi.mocked(tripApi.update).mockResolvedValue({
+      id: "trip-1",
+      owner_id: "user-1",
+      status: "ready",
+      version: 4,
+      brief,
+      created_at: "2026-11-14T00:00:00Z",
+      updated_at: "2026-11-14T00:00:01Z",
+    });
+    vi.mocked(planningApi.start).mockResolvedValue({
+      job_id: "job-update",
+      status: "running",
+    });
+    vi.mocked(planningApi.get).mockResolvedValue({
+      id: "job-update",
+      trip_id: "trip-1",
+      status: "completed",
+      progress: 100,
+      events: [],
+      result: {
+        trip_id: "trip-1",
+        version: 4,
+        validation_summary: [],
+        days: [],
+      },
+      error_code: null,
+      error_message: null,
+      created_at: "2026-11-14T00:00:00Z",
+      started_at: "2026-11-14T00:00:00Z",
+      finished_at: "2026-11-14T00:00:01Z",
+      tool_call_count: 0,
+      loop_count: 0,
+    });
+    vi.mocked(itineraryApi.get).mockResolvedValue({
+      trip_id: "trip-1",
+      version: 4,
+      days: [],
+    });
+    const wrapper = mount(HomeView, {
+      global: {
+        stubs: {
+          RouterLink: { template: "<a><slot /></a>" },
+        },
+      },
+    });
+
+    await wrapper.get("textarea").setValue("第二天调整得轻松一点");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    await flushPromises();
+
+    expect(tripApi.update).toHaveBeenCalledWith(
+      "token",
+      "trip-1",
+      expect.objectContaining({ expected_version: 3, brief }),
+    );
+    expect(tripApi.create).not.toHaveBeenCalled();
+    expect(planningApi.start).toHaveBeenCalledWith(
+      "token",
+      "trip-1",
+      4,
+      true,
+    );
   });
 
   it("asks a guest to log in before focusing the composer and preserves the draft", async () => {

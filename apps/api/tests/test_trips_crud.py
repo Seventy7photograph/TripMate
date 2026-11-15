@@ -18,6 +18,19 @@ def trip_payload(**overrides: object) -> dict[str, object]:
         "interests": ["food", "citywalk"],
         "pace": "balanced",
         "transport_preferences": ["public_transit"],
+        "transport_strategy": {
+            "strategy": "single",
+            "segments": [
+                {
+                    "mode": "public_transit",
+                    "coverage": "whole_trip",
+                    "days": None,
+                    "parking_required": None,
+                    "description": "全程公共交通",
+                }
+            ],
+            "constraints": [],
+        },
         "lodging_preferences": ["central"],
         "must_visit": ["Hongya Cave"],
         "avoid": ["crowded"],
@@ -44,6 +57,7 @@ async def test_create_list_and_read_trip(api_client: httpx.AsyncClient) -> None:
     assert trip["version"] == 1
     assert trip["brief"]["destination"] == "Chongqing"
     assert trip["brief"]["budget_minor"] == 500_000
+    assert trip["brief"]["transport_strategy"]["strategy"] == "single"
 
     listed = await api_client.get("/api/v1/trips", headers=auth_headers(token))
     assert listed.status_code == 200

@@ -61,6 +61,78 @@ def test_registry_selects_latest_or_explicit_version(tmp_path: Path) -> None:
         registry.get("missing-skill")
 
 
+def test_registry_loads_multiple_reviewed_versions(tmp_path: Path) -> None:
+    skill_root = tmp_path / "route-optimization"
+    for version in ("1.0.0", "1.1.0"):
+        target = skill_root / "versions" / version
+        target.mkdir(parents=True)
+        (target / "skill.yaml").write_text(
+            (
+                "name: route-optimization\n"
+                f"version: {version}\n"
+                "status: active\n"
+                "description: Versioned route skill.\n"
+                "allowed_tools: [get_route]\n"
+                "allowed_mcp_connectors: []\n"
+                "max_tool_calls: 2\n"
+                "timeout_seconds: 10\n"
+                "max_tokens: 1000\n"
+                "fallback: existing_itinerary_graph\n"
+            ),
+            encoding="utf-8",
+        )
+    registry = SkillRegistry(known_tools={"get_route"})
+
+    registry.load(tmp_path)
+
+    assert registry.get("route-optimization", "1.0.0").version == "1.0.0"
+    assert registry.get("route-optimization", "1.1.0").version == "1.1.0"
+    assert registry.get("route-optimization").version == "1.1.0"
+
+
+async def test_state_can_select_an_older_reviewed_version(
+    api_client: httpx.AsyncClient,
+    tmp_path: Path,
+) -> None:
+    skill_root = tmp_path / "route-optimization"
+    for version in ("1.0.0", "1.1.0"):
+        target = skill_root / "versions" / version
+        target.mkdir(parents=True)
+        (target / "skill.yaml").write_text(
+            (
+                "name: route-optimization\n"
+                f"version: {version}\n"
+                "status: active\n"
+                "description: Versioned route skill.\n"
+                "allowed_tools: [get_route]\n"
+                "allowed_mcp_connectors: []\n"
+                "max_tool_calls: 2\n"
+                "timeout_seconds: 10\n"
+                "max_tokens: 1000\n"
+                "fallback: existing_itinerary_graph\n"
+            ),
+            encoding="utf-8",
+        )
+    registry = SkillRegistry(known_tools={"get_route"})
+    registry.load(tmp_path)
+    actor = await register_user(api_client)
+    service = SkillStateService(app.state.test_session)
+
+    await service.set_enabled(
+        skill_name="route-optimization",
+        version="1.0.0",
+        enabled=True,
+        actor_id=UUID(str(actor["user"]["id"])),
+        reason="rollback",
+    )
+    enabled = await service.enabled_manifests(registry)
+    views = await service.skill_views(registry)
+
+    assert enabled[0].version == "1.0.0"
+    assert views[0].version == "1.0.0"
+    assert views[0].available_versions == ["1.0.0", "1.1.0"]
+
+
 def test_registry_rejects_script_fields(tmp_path: Path) -> None:
     write_manifest(tmp_path, extra_yaml="script: rm -rf /\n")
 

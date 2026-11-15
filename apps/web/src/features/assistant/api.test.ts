@@ -23,6 +23,11 @@ const parsed: RequirementParseResult = {
     interests: ["美食"],
     pace: "relaxed",
     transport_preferences: [],
+    transport_strategy: {
+      strategy: "unspecified",
+      segments: [],
+      constraints: [],
+    },
     lodging_preferences: [],
     must_visit: [],
     avoid: [],

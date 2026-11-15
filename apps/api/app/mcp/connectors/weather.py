@@ -27,6 +27,7 @@ def weather_connector_definition(endpoint: str) -> McpConnectorDefinition:
             McpToolBinding(
                 name=spec.name,
                 provider_type="weather",
+                output_kind="weather_snapshot",
             ),
         ),
     )

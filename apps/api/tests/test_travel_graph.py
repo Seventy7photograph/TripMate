@@ -1,6 +1,7 @@
 # 文件说明：后端自动化测试：test_travel_graph。
 import asyncio
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -439,6 +440,14 @@ async def test_llm_composer_uses_only_candidate_backed_places() -> None:
         version=1,
         brief=brief_fixture(),
         candidates=candidates,
+        skill_results={
+            "weather-and-clothing": {
+                "condition": "多云",
+                "clothing_advice": ["带薄外套"],
+                "outdoor_risk": "low",
+                "evidence_ids": ["ev-weather"],
+            }
+        },
     )
 
     assert result.draft.days[0].stops[0].place_id == candidates[0]["provider_place_id"]
@@ -451,6 +460,8 @@ async def test_llm_composer_uses_only_candidate_backed_places() -> None:
     assert provider.requests[0].metadata["prompt_version"] == "1.0.0"
     assert result.prompt_versions[0]["prompt_id"] == "system"
     assert '"days"' in provider.requests[0].user_prompt
+    assert "skill-results" in provider.requests[0].user_prompt
+    assert result.draft.days[0].weather.summary == "多云"
     assert provider.requests[0].max_tokens == 24_000
 
 
@@ -488,3 +499,65 @@ async def test_llm_composer_rejects_unknown_place_id() -> None:
             brief=brief_fixture(),
             candidates=candidates,
         )
+
+
+async def test_mock_composer_uses_skill_results_in_day_plan() -> None:
+    places = await MockMapProvider().search_places(
+        PlaceQuery(keyword="重庆 景点", city="重庆", limit=1)
+    )
+    candidates = [place_to_record(place) for place in places]
+    composer = MockItineraryComposer()
+
+    result = await composer.compose(
+        trip_id="trip-1",
+        version=1,
+        brief=brief_fixture().model_copy(
+            update={
+                "start_date": date(2026, 12, 1),
+                "end_date": date(2026, 12, 1),
+            }
+        ),
+        candidates=candidates,
+        skill_results={
+            "weather-and-clothing": {
+                "condition": "小雨",
+                "temperature_max_c": 12,
+                "temperature_min_c": 7,
+                "precipitation_probability": 80,
+                "clothing_advice": ["携带雨具"],
+                "outdoor_risk": "high",
+                "evidence_ids": ["ev-weather"],
+            },
+            "food-planning": {
+                "meals": [
+                    {
+                        "name": "山城小面",
+                        "opening_hours_status": "unknown",
+                        "evidence_ids": ["ev-food"],
+                    }
+                ],
+                "evidence_ids": ["ev-food"],
+            },
+            "lodging-area-selection": {
+                "areas": [
+                    {
+                        "name": "解放碑",
+                        "evidence_ids": ["ev-lodging"],
+                    }
+                ]
+            },
+            "safety-briefing": {
+                "level": "warning",
+                "reminders": ["雨天路滑"],
+                "disclaimer": "不替代医疗意见。",
+                "evidence_ids": ["ev-safety"],
+            },
+        },
+    )
+
+    day = result.draft.days[0]
+    assert day.weather.summary == "小雨"
+    assert day.weather.clothing_advice == ["携带雨具"]
+    assert day.meals[0].place_name == "山城小面"
+    assert day.lodging_area.area == "解放碑"
+    assert day.safety.reminders == ["雨天路滑"]

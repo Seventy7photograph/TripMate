@@ -20,8 +20,12 @@ async def evidence_plan_node(
         stage="evidence_plan",
         message="正在建立候选地点 Evidence",
     )
-    evidence_ids_by_place: dict[str, str] = {}
-    evidence_records: list[dict[str, object]] = []
+    evidence_ids_by_place: dict[str, str] = dict(
+        state.get("evidence_ids_by_place", {})
+    )
+    evidence_records: list[dict[str, object]] = [
+        dict(item) for item in state.get("evidence_records", [])
+    ]
     trip_id = _trip_uuid(state.get("trip_id"))
     owner_id = graph_runtime.tool_context.owner_id or uuid4()
     try:
@@ -67,7 +71,7 @@ async def evidence_plan_node(
     )
     return {
         "evidence_ids_by_place": evidence_ids_by_place,
-        "evidence_records": evidence_records,
+        "evidence_records": _deduplicate_records(evidence_records),
         "events": graph_runtime.event_dicts(),
     }
 
@@ -77,3 +81,14 @@ def _trip_uuid(value: object) -> UUID | None:
         return UUID(str(value))
     except (TypeError, ValueError):
         return None
+
+
+def _deduplicate_records(
+    records: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    by_id: dict[str, dict[str, object]] = {}
+    for record in records:
+        record_id = str(record.get("id", ""))
+        if record_id:
+            by_id[record_id] = record
+    return list(by_id.values())

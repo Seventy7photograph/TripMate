@@ -9,6 +9,7 @@ from app.providers.base import PlaceResult, RouteMode
 from app.tools.context import ToolContext
 from app.tools.contracts import ToolSpec
 from app.tools.evidence import write_evidence
+from app.tools.registry import ToolNotAllowedError
 from app.tools.route_tools import RouteTool, RouteToolInput
 
 
@@ -126,6 +127,8 @@ class MatrixTool:
             destination_location = destination.location
             if origin_location is None or destination_location is None:
                 continue
+            if self._route_tool.name not in context.allowed_tools:
+                raise ToolNotAllowedError(self._route_tool.name)
             result = await self._route_tool.get(
                 RouteToolInput(
                     origin=origin_location,

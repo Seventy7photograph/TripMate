@@ -1,0 +1,77 @@
+version: 1
+cases:
+  - category: destination
+    message: 广州有什么好玩的
+    intent: destination_research
+    in_scope: true
+    required_skills: [destination-research]
+  - category: food
+    message: 广州有什么好吃的
+    intent: destination_research
+    in_scope: true
+    required_skills: [destination-research]
+  - category: attractions
+    message: 泉州古城值得看什么
+    intent: destination_research
+    in_scope: true
+    required_skills: [destination-research]
+  - category: planning
+    message: 帮我安排成都四天
+    intent: plan_trip
+    in_scope: true
+    required_skills: []
+  - category: route
+    message: 成都到乐山怎么走
+    intent: route_advice
+    in_scope: true
+    required_skills: [route-optimization]
+  - category: transport
+    message: 城市间自驾，市内地铁和步行
+    intent: plan_trip
+    in_scope: true
+    required_skills: []
+  - category: lodging
+    message: 住成都哪个区域方便
+    intent: travel_question
+    in_scope: true
+    required_skills: [lodging-area-selection]
+  - category: weather
+    message: 12月去哈尔滨穿什么
+    intent: travel_question
+    in_scope: true
+    required_skills: [weather-and-clothing]
+  - category: budget
+    message: 泉州三天预算3000够吗
+    intent: budget_advice
+    in_scope: true
+    required_skills: [budget-optimization]
+  - category: policy
+    message: 去日本需要签证吗
+    intent: travel_question
+    in_scope: true
+    required_skills: []
+  - category: safety
+    message: 珠峰大本营高反风险大吗
+    intent: travel_question
+    in_scope: true
+    required_skills: [safety-briefing]
+  - category: live_fact
+    message: 开元寺今天开放吗
+    intent: destination_research
+    in_scope: true
+    required_skills: [destination-research]
+  - category: follow_up
+    message: 改成14号，预算加到5000
+    intent: plan_trip
+    in_scope: true
+    required_skills: []
+  - category: greeting
+    message: 你好
+    intent: clarify
+    in_scope: true
+    required_skills: []
+  - category: out_of_scope
+    message: 帮我写 Python 排序
+    intent: out_of_scope
+    in_scope: false
+    required_skills: []

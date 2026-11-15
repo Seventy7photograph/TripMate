@@ -53,6 +53,7 @@ describe("auth store", () => {
       title: "重庆",
       messages: [{ id: 1, role: "user", kind: "text", text: "去重庆" }],
       requirement_history: ["去重庆"],
+      planning_draft: {},
       trip_id: null,
       version: 1,
       message_count: 1,

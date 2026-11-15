@@ -102,6 +102,22 @@ async def skill_route_node(
             "events": graph_runtime.event_dicts(),
         }
     if (
+        decision.requires_confirmation
+        and not bool(state.get("brief_confirmed", False))
+    ):
+        graph_runtime.emit(
+            "error",
+            status="failed",
+            message="需要用户确认旅行需求后才能继续",
+        )
+        return {
+            "skill_route": route_record,
+            "status": "failed",
+            "error_code": "confirmation_required",
+            "error_message": "User confirmation is required",
+            "events": graph_runtime.event_dicts(),
+        }
+    if (
         decision.confidence < 0.7
         or decision.needs_clarification
         or decision.intent == "clarify"

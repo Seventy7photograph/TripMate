@@ -46,6 +46,64 @@ services:
       - clamav_data:/var/lib/clamav
     restart: unless-stopped
 
+  mcp-amap:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    command:
+      [
+        "python",
+        "-m",
+        "app.mcp.server",
+        "--connector",
+        "amap",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8021",
+      ]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PROVIDER_PROFILE: ${PROVIDER_PROFILE:-mock}
+      MAP_PROVIDER_PROFILE: ${MAP_PROVIDER_PROFILE:-mock}
+      AMAP_WEB_SERVICE_KEY: ${AMAP_WEB_SERVICE_KEY:-}
+      AMAP_BASE_URL: ${AMAP_BASE_URL:-https://restapi.amap.com}
+      PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-5}
+      PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-2}
+      OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-}
+    restart: unless-stopped
+
+  mcp-weather:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    command:
+      [
+        "python",
+        "-m",
+        "app.mcp.server",
+        "--connector",
+        "weather",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8022",
+      ]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PROVIDER_PROFILE: ${PROVIDER_PROFILE:-mock}
+      MAP_PROVIDER_PROFILE: ${MAP_PROVIDER_PROFILE:-mock}
+      AMAP_WEB_SERVICE_KEY: ${AMAP_WEB_SERVICE_KEY:-}
+      AMAP_BASE_URL: ${AMAP_BASE_URL:-https://restapi.amap.com}
+      OPEN_METEO_BASE_URL: ${OPEN_METEO_BASE_URL:-https://api.open-meteo.com}
+      OPEN_METEO_GEOCODING_BASE_URL: ${OPEN_METEO_GEOCODING_BASE_URL:-https://geocoding-api.open-meteo.com}
+      PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-5}
+      PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-2}
+      OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-}
+    restart: unless-stopped
+
   api:
     profiles: ["app"]
     build:
@@ -61,6 +119,10 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
       LLM_MODEL: ${LLM_MODEL:-}
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-false}
+      MCP_ALLOWED_CONNECTORS: ${MCP_ALLOWED_CONNECTORS:-amap,weather}
+      MCP_AMAP_ENDPOINT: ${MCP_AMAP_ENDPOINT:-http://mcp-amap:8021/mcp}
+      MCP_WEATHER_ENDPOINT: ${MCP_WEATHER_ENDPOINT:-http://mcp-weather:8022/mcp}
       JWT_SECRET: ${JWT_SECRET:-tripmate-development-only-change-before-production}
       MODEL_CONFIG_ENCRYPTION_KEY: ${MODEL_CONFIG_ENCRYPTION_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:8081}
@@ -78,6 +140,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mcp-amap:
+        condition: service_started
+      mcp-weather:
+        condition: service_started
       clamav:
         condition: service_started
     healthcheck:
@@ -110,6 +176,10 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
       LLM_MODEL: ${LLM_MODEL:-}
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-false}
+      MCP_ALLOWED_CONNECTORS: ${MCP_ALLOWED_CONNECTORS:-amap,weather}
+      MCP_AMAP_ENDPOINT: ${MCP_AMAP_ENDPOINT:-http://mcp-amap:8021/mcp}
+      MCP_WEATHER_ENDPOINT: ${MCP_WEATHER_ENDPOINT:-http://mcp-weather:8022/mcp}
       JWT_SECRET: ${JWT_SECRET:-tripmate-development-only-change-before-production}
       MODEL_CONFIG_ENCRYPTION_KEY: ${MODEL_CONFIG_ENCRYPTION_KEY:-}
       OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-}

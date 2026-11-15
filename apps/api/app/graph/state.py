@@ -29,6 +29,8 @@ class TravelGraphState(TypedDict, total=False):
     model_name: str
     provider_name: str
     skills_used: list[dict[str, object]]
+    skill_results: dict[str, dict[str, object]]
+    skill_errors: dict[str, str]
     skill_route: dict[str, object] | None
     prompt_versions: list[dict[str, str]]
     events: list[dict[str, object]]

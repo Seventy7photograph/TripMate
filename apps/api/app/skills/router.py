@@ -46,7 +46,6 @@ class SkillRouter:
         text: str | None = None,
         brief: TripBriefContract | None = None,
         available_skills: list[SkillManifest],
-        requested_skills: list[str] | None = None,
     ) -> SkillRouteDecision:
         active = {
             manifest.name: manifest
@@ -58,10 +57,6 @@ class SkillRouter:
             return self._route_text(normalized, active)
 
         selected = self._select_from_brief(brief, normalized, active)
-        if requested_skills:
-            selected = [
-                name for name in requested_skills if name in selected
-            ]
         missing = self._missing_brief_fields(brief)
         confidence = 0.92 if not missing else 0.64
         return self._decision(
@@ -131,6 +126,8 @@ class SkillRouter:
             ]
         )
         selected = ["route-optimization"]
+        if brief.budget_minor is not None:
+            selected.append("budget-optimization")
         if brief.must_visit or any(
             term in searchable
             for term in ("景点", "古建", "古城", "博物馆", "目的地")

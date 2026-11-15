@@ -36,6 +36,20 @@ class WeatherToolOutput(BaseModel):
     evidence_id: UUID
 
 
+class WeatherSnapshotOutput(BaseModel):
+    provider: str
+    city: str
+    date: Date
+    condition: str
+    temperature_max_c: int | None
+    temperature_min_c: int | None
+    precipitation_probability: int | None
+    humidity_percent: int | None
+    wind_direction: str | None
+    wind_power: str | None
+    freshness: str
+
+
 _GET_WEATHER_SPEC = ToolSpec(
     name="get_weather",
     description="Fetch a provider-backed weather snapshot for a city and date.",
@@ -98,6 +112,16 @@ class WeatherTool:
             **snapshot.model_dump(exclude={"evidence"}),
             evidence_id=evidence_id,
         )
+
+    async def close(self) -> None:
+        seen: set[int] = set()
+        for provider in (self._primary, self._fallback):
+            if provider is None or id(provider) in seen:
+                continue
+            seen.add(id(provider))
+            close = getattr(provider, "close", None)
+            if close is not None:
+                await close()
 
     async def _forecast(
         self,

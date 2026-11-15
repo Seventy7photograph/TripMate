@@ -48,6 +48,14 @@ async def build_itinerary_node(
                 "evidence_ids_by_place",
                 {},
             )
+        if "skill_results" in parameters or any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        ):
+            compose_kwargs["skill_results"] = state.get(
+                "skill_results",
+                {},
+            )
         result = await composer.compose(**compose_kwargs)  # type: ignore[arg-type]
     except RetryableCompositionError as exc:
         if loop_count >= max_loops:

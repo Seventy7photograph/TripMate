@@ -9,9 +9,31 @@ const manifests = {};
 
 for (const entry of readdirSync(root, { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
-  const relative = `${entry.name}/skill.yaml`;
-  const content = readFileSync(join(root, relative));
-  manifests[relative] = createHash("sha256").update(content).digest("hex");
+  const skillRoot = join(root, entry.name);
+  const versionRoot = join(skillRoot, "versions");
+  const candidates = [join(skillRoot, "skill.yaml")];
+  try {
+    for (const versionEntry of readdirSync(versionRoot, {
+      withFileTypes: true,
+    })) {
+      if (versionEntry.isDirectory()) {
+        candidates.push(join(versionRoot, versionEntry.name, "skill.yaml"));
+      }
+    }
+  } catch {
+    // Legacy single-manifest skills do not have a versions directory.
+  }
+  for (const path of candidates) {
+    try {
+      const relative = path.slice(root.length + 1).replaceAll("\\", "/");
+      const content = readFileSync(path);
+      manifests[relative] = createHash("sha256")
+        .update(content)
+        .digest("hex");
+    } catch {
+      // Ignore absent optional paths; actual manifests are validated by API tests.
+    }
+  }
 }
 
 const payload = {

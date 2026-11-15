@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   Conversation,
   ConversationSummary,
+  PlanningDraft,
 } from "../features/chat/types";
 
 export const ACTIVE_CONVERSATION_KEY =
@@ -29,6 +30,7 @@ function persistActiveConversationId(conversationId: string | null): void {
 export const useConversationStore = defineStore("conversation", () => {
   const messages = ref<ChatMessage[]>([]);
   const requirementHistory = ref<string[]>([]);
+  const planningDraft = ref<PlanningDraft>({});
   const conversationId = ref<string | null>(null);
   const conversationVersion = ref(0);
   const conversationTripId = ref<string | null>(null);
@@ -43,6 +45,7 @@ export const useConversationStore = defineStore("conversation", () => {
     conversationVersion.value = conversation.version;
     conversationTripId.value = conversation.trip_id;
     requirementHistory.value = [...conversation.requirement_history];
+    planningDraft.value = conversation.planning_draft ?? {};
     messages.value = conversation.messages.map((message, index) => ({
       ...message,
       id: message.id ?? index + 1,
@@ -56,6 +59,7 @@ export const useConversationStore = defineStore("conversation", () => {
   function resetConversation(): void {
     messages.value = [];
     requirementHistory.value = [];
+    planningDraft.value = {};
     conversationId.value = null;
     conversationVersion.value = 0;
     conversationTripId.value = null;
@@ -72,6 +76,7 @@ export const useConversationStore = defineStore("conversation", () => {
   return {
     messages,
     requirementHistory,
+    planningDraft,
     conversationId,
     conversationVersion,
     conversationTripId,

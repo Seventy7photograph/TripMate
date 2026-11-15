@@ -70,7 +70,7 @@ test("admin can inspect and roll back agent skills", async ({
   const research = page.locator(".skill-card").filter({
     hasText: "destination-research",
   });
-  await expect(research.getByText("1.0.0")).toBeVisible();
+  await expect(research.locator("select")).toHaveValue("1.0.0");
   await expect(research.getByText("search_places")).toBeVisible();
   await research.getByRole("switch", { name: "停用 Skill" }).click();
   await expect(

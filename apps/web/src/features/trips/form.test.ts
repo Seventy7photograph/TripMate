@@ -21,6 +21,11 @@ function form(overrides: Partial<TripBriefFormInput> = {}): TripBriefFormInput {
     interests: "food, citywalk",
     pace: "balanced",
     transportPreferences: "public_transit",
+    transportStrategy: {
+      strategy: "unspecified",
+      segments: [],
+      constraints: [],
+    },
     lodgingPreferences: "central",
     mustVisit: "Hongya Cave",
     avoid: "crowded",
@@ -58,6 +63,11 @@ describe("trip brief form", () => {
       interests: ["food", "citywalk"],
       pace: "balanced",
       transport_preferences: ["public_transit"],
+      transport_strategy: {
+        strategy: "unspecified",
+        segments: [],
+        constraints: [],
+      },
     });
   });
 

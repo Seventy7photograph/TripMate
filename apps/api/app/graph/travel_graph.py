@@ -30,6 +30,8 @@ from app.graph.nodes.parse_request import parse_request_node
 from app.graph.nodes.persist_plan import persist_plan_node
 from app.graph.nodes.repair import repair_node
 from app.graph.nodes.research import research_node
+from app.graph.nodes.skill_execute import skill_execute_node
+from app.graph.nodes.skill_finalize import skill_finalize_node
 from app.graph.nodes.skill_route import skill_route_node
 from app.graph.runtime import GraphRuntime
 from app.graph.state import TravelGraphState
@@ -44,6 +46,7 @@ from app.services.place_service import create_map_provider
 from app.skills.manifest import SkillManifest
 from app.skills.registry import load_configured_registry
 from app.skills.router import SkillRouter
+from app.skills.runtime import SkillRuntime
 from app.tools.base import ToolCallAudit
 from app.tools.budget_tools import BudgetTool
 from app.tools.context import EvidenceWriter
@@ -131,6 +134,7 @@ class TravelGraph:
         available_skills: list[SkillManifest] | None = None,
         skills_enabled: bool = True,
         router_enabled: bool = True,
+        skill_runtime: SkillRuntime | None = None,
         on_update: Callable[[TravelGraphState], Awaitable[None]] | None = None,
     ) -> TravelGraphOutcome:
         # 每次运行创建独立 Runtime，隔离 Tool 预算、权限和审计。
@@ -166,6 +170,7 @@ class TravelGraph:
             ),
             skills_enabled=skills_enabled,
             router_enabled=router_enabled,
+            skill_runtime=skill_runtime,
             checkpointer=checkpointer,
         )
         initial: TravelGraphState = {
@@ -193,6 +198,8 @@ class TravelGraph:
             "model_name": self._composer.model_name,
             "provider_name": self._composer.provider_name,
             "skills_used": [],
+            "skill_results": {},
+            "skill_errors": {},
             "skill_route": None,
             "prompt_versions": [],
             "events": [],
@@ -240,6 +247,7 @@ class TravelGraph:
         available_skills: list[SkillManifest],
         skills_enabled: bool,
         router_enabled: bool,
+        skill_runtime: SkillRuntime | None,
         checkpointer: BaseCheckpointSaver | None,
     ):
         builder = StateGraph(TravelGraphState)
@@ -268,6 +276,14 @@ class TravelGraph:
             ),
         )
         builder.add_node(
+            "skill_execute",
+            partial(
+                skill_execute_node,
+                graph_runtime=runtime,
+                skill_runtime=skill_runtime,
+            ),
+        )
+        builder.add_node(
             "evidence_plan",
             partial(
                 evidence_plan_node,
@@ -285,10 +301,19 @@ class TravelGraph:
             ),
         )
         builder.add_node(
+            "skill_finalize",
+            partial(
+                skill_finalize_node,
+                graph_runtime=runtime,
+                skill_runtime=skill_runtime,
+            ),
+        )
+        builder.add_node(
             "evidence_verify",
             partial(
                 evidence_verify_node,
                 graph_runtime=runtime,
+                skill_runtime=skill_runtime,
             ),
         )
         builder.add_node(
@@ -320,7 +345,8 @@ class TravelGraph:
             _after_skill_route,
             {"research": "research", "persist": "persist_plan"},
         )
-        builder.add_edge("research", "evidence_plan")
+        builder.add_edge("research", "skill_execute")
+        builder.add_edge("skill_execute", "evidence_plan")
         builder.add_conditional_edges(
             "evidence_plan",
             _after_evidence_plan,
@@ -331,10 +357,11 @@ class TravelGraph:
             _after_build,
             {
                 "retry": "build_itinerary",
-                "verify": "evidence_verify",
+                "verify": "skill_finalize",
                 "failed": "persist_plan",
             },
         )
+        builder.add_edge("skill_finalize", "evidence_verify")
         builder.add_conditional_edges(
             "evidence_verify",
             _after_evidence_verify,

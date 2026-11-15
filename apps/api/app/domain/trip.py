@@ -4,6 +4,8 @@ from datetime import date, datetime
 from typing import Literal, cast
 from uuid import UUID
 
+from app.domain.transport import TransportStrategy
+
 TripStatus = Literal["draft", "planning", "ready", "archived"]
 TripPace = Literal["relaxed", "balanced", "intensive"]
 
@@ -30,6 +32,7 @@ class TripBrief:
     interests: list[str]
     pace: TripPace
     transport_preferences: list[str]
+    transport_strategy: TransportStrategy
     lodging_preferences: list[str]
     must_visit: list[str]
     avoid: list[str]
@@ -47,6 +50,7 @@ class TripBrief:
             "interests": self.interests,
             "pace": self.pace,
             "transport_preferences": self.transport_preferences,
+            "transport_strategy": self.transport_strategy.model_dump(mode="json"),
             "lodging_preferences": self.lodging_preferences,
             "must_visit": self.must_visit,
             "avoid": self.avoid,
@@ -70,6 +74,9 @@ class TripBrief:
             interests=_string_list(record.get("interests")),
             pace=cast(TripPace, str(record["pace"])),
             transport_preferences=_string_list(record.get("transport_preferences")),
+            transport_strategy=TransportStrategy.model_validate(
+                record.get("transport_strategy") or {}
+            ),
             lodging_preferences=_string_list(record.get("lodging_preferences")),
             must_visit=_string_list(record.get("must_visit")),
             avoid=_string_list(record.get("avoid")),

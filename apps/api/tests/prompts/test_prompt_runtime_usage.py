@@ -6,6 +6,10 @@ from uuid import uuid4
 
 from app.agents.requirement_parser import RequirementParser
 from app.agents.travel_chat import TravelChatAgent
+from app.prompts.registry import (
+    TRAVEL_CHAT_INTENT_ROUTER,
+    load_prompt,
+)
 from app.providers.llm.base import (
     LlmRequest,
     LlmResponse,
@@ -49,13 +53,13 @@ async def test_requirement_parser_records_exact_prompt_version() -> None:
     assert provider.request is not None
     assert provider.request.metadata["prompt_agent"] == "requirement-parser"
     assert provider.request.metadata["prompt_id"] == "system"
-    assert provider.request.metadata["prompt_version"] == "1.0.0"
+    assert provider.request.metadata["prompt_version"] == "1.1.0"
     assert len(provider.request.metadata["prompt_sha256"]) == 64
     assert result.prompt_versions == [
         {
             "agent": "requirement-parser",
             "prompt_id": "system",
-            "version": "1.0.0",
+                "version": "1.1.0",
             "sha256": provider.request.metadata["prompt_sha256"],
         }
     ]
@@ -140,3 +144,12 @@ async def test_travel_chat_records_both_prompt_versions() -> None:
             }
         ]
     ]
+
+
+def test_live_intent_prompt_requires_structured_skill_calls() -> None:
+    prompt = load_prompt(TRAVEL_CHAT_INTENT_ROUTER)
+
+    assert prompt.version == "1.3.0"
+    assert '"skill_calls"' in prompt.content
+    assert "arguments" in prompt.content
+    assert "不得编造" in prompt.content

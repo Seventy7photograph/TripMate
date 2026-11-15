@@ -5,6 +5,11 @@ import time
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from app.domain.transport import (
+    normalize_transport_strategy,
+    transport_preferences_for,
+)
+from app.domain.travel_intent import extract_trip_destination, is_citywalk_message
 from app.providers.llm.base import LlmRequest, LlmResponse, LlmUsage
 
 _CHINESE_NUMBERS = {
@@ -49,10 +54,15 @@ class MockLlmProvider:
         destination = self._extract_destination(text)
         party_size = self._extract_party_size(text)
         budget_minor = self._extract_budget_minor(text)
+        transport_strategy = normalize_transport_strategy(text)
         interests = [
             interest
             for interest in ("美食", "城市漫步", "历史", "博物馆", "摄影", "自然", "夜景")
-            if interest in text
+            if (
+                is_citywalk_message(text)
+                if interest == "城市漫步"
+                else interest in text
+            )
         ]
 
         return {
@@ -71,7 +81,10 @@ class MockLlmProvider:
                 if any(word in text for word in ("紧凑", "特种兵", "赶"))
                 else "balanced"
             ),
-            "transport_preferences": [],
+            "transport_preferences": transport_preferences_for(
+                transport_strategy
+            ),
+            "transport_strategy": transport_strategy.model_dump(mode="json"),
             "lodging_preferences": [],
             "must_visit": [],
             "avoid": [],
@@ -87,22 +100,39 @@ class MockLlmProvider:
             r"(?P<end_month>\d{1,2})月(?P<end_day>\d{1,2})日",
             text,
         )
-        if match is None:
+        if match is not None:
+            try:
+                start = date(
+                    int(match.group("start_year")),
+                    int(match.group("start_month")),
+                    int(match.group("start_day")),
+                )
+                end = date(
+                    int(match.group("end_year") or match.group("start_year")),
+                    int(match.group("end_month")),
+                    int(match.group("end_day")),
+                )
+            except ValueError:
+                return None, None
+            return start, end
+
+        if not any(term in text for term in ("一日游", "1日游", "一天游")):
+            return None, None
+        single_day = re.search(
+            r"(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日",
+            text,
+        )
+        if single_day is None:
             return None, None
         try:
-            start = date(
-                int(match.group("start_year")),
-                int(match.group("start_month")),
-                int(match.group("start_day")),
-            )
-            end = date(
-                int(match.group("end_year") or match.group("start_year")),
-                int(match.group("end_month")),
-                int(match.group("end_day")),
+            day = date(
+                int(single_day.group("year")),
+                int(single_day.group("month")),
+                int(single_day.group("day")),
             )
         except ValueError:
             return None, None
-        return start, end
+        return day, day
 
     @staticmethod
     def _extract_origin(text: str) -> str | None:
@@ -119,7 +149,9 @@ class MockLlmProvider:
             r"(?=，|,|。|；|;|\s|预算|\d|[一二两三四五六七八九十]个?人)",
             text,
         )
-        return match.group("destination") if match else None
+        if match is not None:
+            return match.group("destination")
+        return extract_trip_destination(text)
 
     @staticmethod
     def _extract_party_size(text: str) -> int | None:

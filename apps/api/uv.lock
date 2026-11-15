@@ -1690,7 +1690,7 @@ wheels = [
 
 [[package]]
 name = "tripmate-api"
-version = "1.0.0"
+version = "1.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
@@ -1699,6 +1699,7 @@ dependencies = [
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "jsonschema" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "mcp" },
@@ -1734,6 +1735,7 @@ requires-dist = [
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.121.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "langgraph", specifier = ">=1.0.0,<2.0.0" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3.0.0,<4.0.0" },
     { name = "mcp", specifier = ">=2.3.0" },

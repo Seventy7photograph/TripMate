@@ -4,7 +4,7 @@
 
 **把一段旅行愿望，变成一份可以修改、验证和分享的真实路书。**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-52634B?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-52634B?style=flat-square)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-B59047?style=flat-square)](LICENSE)
 [![Vue](https://img.shields.io/badge/Vue-3-3F8F74?style=flat-square&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.11+-2E7D6B?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -43,6 +43,9 @@ TripMate 的设计原则是：
 - 支持图片、PDF、TXT 和 Markdown 附件参与需求理解。
 - LangGraph 单主 Agent 编排需求解析、地点研究、行程生成、规则校验与有限修复。
 - 受控 Skill Router 根据旅行意图选择研究、路线、预算、天气、餐饮、住宿和安全 Skill。
+- 连续对话保存结构化 `planning_draft`，支持跨轮日期、人数、预算和交通偏好合并。
+- 用户可在对话中自动创建、更新和重新规划行程，旧行程版本可恢复。
+- 长对话使用独立消息滚动区和固定输入区，并在模型思考时显示加载反馈。
 - EvidenceRecord 记录 Provider、查询时间、freshness、置信度和来源。
 - 未知或过期事实显式标记，不用猜测填补价格、营业时间或坐标。
 - 支持 Mock 模式进行确定性测试，也支持 OpenAI-compatible Live 模型。
@@ -92,6 +95,7 @@ TripMate 的设计原则是：
 - 用户文本、附件、Tool 结果和 MCP 内容都按不可信数据处理。
 - Tool 调用有 Schema、超时、调用预算、deadline 和审计。
 - MCP Gateway 只接受服务端固定 endpoint，不支持用户 URL 或 Shell 执行。
+- 真实 AMap/Weather Streamable HTTP MCP Server 支持受控调用、健康检查与本地降级。
 
 ## 产品预览
 
@@ -358,7 +362,7 @@ TripMate 使用“旅行杂志编辑感 + 地图工作台”的视觉方向：�
 
 ## 版本
 
-当前开源版本：**TripMate V1.0.0**
+当前开源版本：**TripMate V1.1.0**
 
 发布摘要见 [CHANGELOG.md](CHANGELOG.md)。
 

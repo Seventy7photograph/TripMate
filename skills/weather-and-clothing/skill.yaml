@@ -14,19 +14,47 @@ input_schema:
 output_schema:
   type: object
   properties:
+    provider:
+      type: string
+    city:
+      type: string
+    date:
+      type: string
+    condition:
+      type: string
+    temperature_max_c:
+      type: [integer, "null"]
+    temperature_min_c:
+      type: [integer, "null"]
+    precipitation_probability:
+      type: [integer, "null"]
     clothing_advice:
       type: array
       items:
         type: string
+    outdoor_risk:
+      type: string
+      enum: [low, moderate, high]
     evidence_ids:
       type: array
       items:
         type: string
-  required: [clothing_advice, evidence_ids]
+  required:
+    - provider
+    - city
+    - date
+    - condition
+    - temperature_max_c
+    - temperature_min_c
+    - precipitation_probability
+    - clothing_advice
+    - outdoor_risk
+    - evidence_ids
   additionalProperties: false
 allowed_tools:
   - get_weather
-allowed_mcp_connectors: []
+allowed_mcp_connectors:
+  - weather
 max_tool_calls: 2
 timeout_seconds: 25
 max_tokens: 3000

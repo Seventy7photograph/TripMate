@@ -80,6 +80,30 @@ async def test_registry_rejects_registered_tool_outside_allowlist() -> None:
         await _registry().invoke(context, "echo", {"value": "blocked"})
 
 
+async def test_registry_fails_closed_for_write_risk_tools() -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="mutate",
+            description="A write tool.",
+            input_model=EchoInput,
+            output_model=EchoOutput,
+            provider_type="deterministic",
+            risk="write",
+        ),
+        _echo_handler,
+    )
+    context = ToolContext(
+        runner=_tool_context().runner,
+        allowed_tools={"mutate"},
+        provider_permissions={"deterministic"},
+        owner_id=uuid4(),
+    )
+
+    with pytest.raises(ToolNotAllowedError):
+        await registry.invoke(context, "mutate", {"value": "blocked"})
+
+
 async def test_registry_validates_input_and_output_models() -> None:
     registry = _registry()
 
