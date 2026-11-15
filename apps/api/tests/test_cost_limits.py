@@ -1,11 +1,17 @@
 # 文件说明：后端自动化测试：test_cost_limits。
 import httpx
+import pytest
 
 from app.api.deps import get_settings
 from app.core.config import Settings
 from app.main import app
 from app.models.agent_run import AgentRun
-from app.services.cost_guard import hash_client_ip
+from app.services.cost_guard import (
+    CostGuard,
+    CostLimitExceeded,
+    hash_client_ip,
+    settled_cost_minor,
+)
 from tests.test_auth import auth_headers, register_user
 from tests.test_trips_crud import trip_payload
 
@@ -149,3 +155,55 @@ async def test_provider_daily_cost_limit_blocks_new_planning_run(
 
     assert response.status_code == 429
     assert response.json()["detail"]["scope"] == "provider"
+
+
+async def test_cost_guard_counts_requested_reservation_before_execution(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    owner_id = registration["user"]["id"]
+    settings = Settings(
+        app_env="test",
+        provider_profile="mock",
+        map_provider_profile="mock",
+        daily_user_cost_limit_minor=1_005,
+        daily_ip_cost_limit_minor=1_000_000,
+        daily_provider_cost_limit_minor=1_000_000,
+    )
+    app.state.test_session.add(
+        AgentRun(
+            created_by=owner_id,
+            trip_id=None,
+            status="completed",
+            progress=100,
+            purpose="planning",
+            provider="mock",
+            model_name="mock",
+            estimated_cost_minor=10,
+            events=[],
+        )
+    )
+    await app.state.test_session.flush()
+
+    with pytest.raises(CostLimitExceeded) as exc_info:
+        await CostGuard(app.state.test_session, settings).check(
+            owner_id=owner_id,
+            provider="mock",
+            request_ip_hash=None,
+            requested_cost_minor=1_000,
+        )
+
+    assert exc_info.value.scope == "user"
+
+
+def test_live_provider_keeps_reservation_when_price_is_unknown() -> None:
+    assert settled_cost_minor(
+        reserved=1_000,
+        reported=0,
+        provider="openai_compatible",
+    ) == 1_000
+    assert settled_cost_minor(
+        reserved=1_000,
+        reported=0,
+        provider="mock",
+    ) == 0

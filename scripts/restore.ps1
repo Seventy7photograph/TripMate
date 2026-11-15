@@ -18,6 +18,23 @@ $manifest = if (Test-Path -LiteralPath $manifestPath) {
 } else {
     $null
 }
+if ($manifest) {
+    $backupItem = Get-Item -LiteralPath $backup
+    if (
+        $null -ne $manifest.size_bytes -and
+        [long]$manifest.size_bytes -ne $backupItem.Length
+    ) {
+        throw "Database dump size does not match backup manifest"
+    }
+    if ($manifest.sha256) {
+        $actualBackupHash = (
+            Get-FileHash -LiteralPath $backup -Algorithm SHA256
+        ).Hash.ToLowerInvariant()
+        if ($actualBackupHash -ne [string]$manifest.sha256) {
+            throw "Database dump SHA-256 does not match backup manifest"
+        }
+    }
+}
 if (-not $UploadDirectory) {
     $UploadDirectory = if ($env:UPLOAD_DIR) {
         $env:UPLOAD_DIR

@@ -20,8 +20,8 @@ from app.queue.planning_queue import PlanningQueue, create_planning_queue
 from app.repositories.itinerary_repository import ItineraryRepository
 from app.repositories.trip_repository import TripRepository
 from app.schemas.ai import PlanningEventContract, TripBriefContract
-from app.services.cost_guard import CostGuard
-from app.services.feature_service import FeatureFlagService
+from app.services.cost_guard import CostGuard, settled_cost_minor
+from app.services.feature_service import FeatureDisabledError, FeatureFlagService
 from app.services.provider_health_service import ProviderHealthService
 from app.services.version_service import VersionService, VersionTripNotFoundError
 from app.skills.runtime import SkillRuntime, build_skill_runtime
@@ -88,6 +88,7 @@ class PlanningService:
             owner_id=owner_id,
             provider=self._graph.provider_name,
             request_ip_hash=request_ip_hash,
+            requested_cost_minor=self._settings.planning_max_cost_minor,
         )
         # 通过版本行锁确认用户拥有旅行且提交版本仍然有效。
         try:
@@ -110,6 +111,7 @@ class PlanningService:
             apply_to_itinerary=apply_to_itinerary,
             provider=self._graph.provider_name,
             model_name=self._graph.model_name,
+            estimated_cost_minor=self._settings.planning_max_cost_minor,
             events=[
                 PlanningEventContract(
                     sequence=1,
@@ -127,7 +129,16 @@ class PlanningService:
         await self._session.refresh(run)
         await self._session.commit()
         # 入队后由 Worker 执行；inline 队列用于测试和本地确定性运行。
-        await self._queue.enqueue(run.id)
+        try:
+            await self._queue.enqueue(run.id)
+        except Exception:
+            await self._fail_run(
+                run,
+                error_code="queue_enqueue_failed",
+                error_message="Planning queue enqueue failed",
+                estimated_cost_minor=0,
+            )
+            raise
 
         if self._queue.is_inline:
             return await self.run_job(run.id)
@@ -149,6 +160,17 @@ class PlanningService:
             raise PlanningTripNotFoundError
         if run.status in {"completed", "failed"}:
             return self._to_view(run)
+        try:
+            await self._features.require_all(
+                ["ai_planning", "llm_provider", "map_provider"]
+            )
+        except FeatureDisabledError as exc:
+            return await self._fail_run(
+                run,
+                error_code="feature_disabled",
+                error_message=f"Planning feature disabled: {exc.key}",
+                estimated_cost_minor=0,
+            )
         if run.trip_id is None:
             run.status = "failed"
             run.progress = 100
@@ -231,6 +253,9 @@ class PlanningService:
             if skills_enabled
             else []
         )
+        skill_runtime.selected_manifests = {
+            skill.name: skill for skill in available_skills
+        }
         memory_skills_used: list[dict[str, object]] = []
         memory_event: PlanningEventContract | None = None
         try:
@@ -505,7 +530,11 @@ class PlanningService:
         run.input_tokens = outcome.input_tokens
         run.output_tokens = outcome.output_tokens
         run.latency_ms = outcome.latency_ms
-        run.estimated_cost_minor = outcome.estimated_cost_minor
+        run.estimated_cost_minor = settled_cost_minor(
+            reserved=run.estimated_cost_minor,
+            reported=outcome.estimated_cost_minor,
+            provider=outcome.provider_name or self._graph.provider_name,
+        )
         run.skills_used = [dict(item) for item in outcome.skills_used]
         run.skill_route = (
             dict(outcome.skill_route)
@@ -539,6 +568,32 @@ class PlanningService:
                     error_code=audit.error_code,
                 )
             )
+
+    async def _fail_run(
+        self,
+        run: AgentRun,
+        *,
+        error_code: str,
+        error_message: str,
+        estimated_cost_minor: int,
+    ) -> AgentRunView:
+        run.status = "failed"
+        run.progress = 100
+        run.error_code = error_code
+        run.error_message = error_message
+        run.estimated_cost_minor = estimated_cost_minor
+        run.finished_at = datetime.now(UTC)
+        run.events = [
+            *run.events,
+            PlanningEventContract(
+                sequence=len(run.events) + 1,
+                type="error",
+                status="failed",
+                message="规划依赖已由管理员关闭",
+            ).model_dump(mode="json"),
+        ]
+        await self._session.commit()
+        return self._to_view(run)
 
     @staticmethod
     def _to_view(run: AgentRun) -> AgentRunView:

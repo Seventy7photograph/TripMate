@@ -9,8 +9,10 @@ from app.agents.requirement_parser import (
     RequirementParser,
     RequirementParseResult,
 )
+from app.core.config import Settings
 from app.models.agent_run import AgentRun
 from app.providers.llm.base import StructuredLlmProvider
+from app.services.cost_guard import CostGuard, settled_cost_minor
 from app.services.provider_health_service import ProviderHealthService
 
 
@@ -19,11 +21,14 @@ class BriefService:
         self,
         session: AsyncSession,
         provider: StructuredLlmProvider,
+        settings: Settings,
         *,
         max_repairs: int = 2,
     ) -> None:
         self._session = session
         self._provider = provider
+        self._settings = settings
+        self._costs = CostGuard(session, settings)
         self._parser = RequirementParser(provider, max_repairs=max_repairs)
 
     async def parse(
@@ -33,15 +38,24 @@ class BriefService:
         text: str,
         documents: list[tuple[str, str]] | None = None,
         image_data_urls: tuple[str, ...] = (),
+        request_ip_hash: str | None = None,
     ) -> RequirementParseResult:
+        await self._costs.check(
+            owner_id=owner_id,
+            provider=self._provider.provider_name,
+            request_ip_hash=request_ip_hash,
+            requested_cost_minor=self._settings.brief_parse_max_cost_minor,
+        )
         run = AgentRun(
             trip_id=None,
             created_by=owner_id,
+            request_ip_hash=request_ip_hash,
             status="running",
             progress=25,
             purpose="brief_parse",
             provider=self._provider.provider_name,
             model_name=self._provider.model_name,
+            estimated_cost_minor=self._settings.brief_parse_max_cost_minor,
             events=[
                 {
                     "sequence": 1,
@@ -55,6 +69,7 @@ class BriefService:
         self._session.add(run)
         await self._session.flush()
         await self._session.refresh(run)
+        await self._session.commit()
 
         try:
             result = await self._parser.parse(
@@ -91,7 +106,11 @@ class BriefService:
         run.input_tokens = result.input_tokens
         run.output_tokens = result.output_tokens
         run.latency_ms = result.latency_ms
-        run.estimated_cost_minor = result.estimated_cost_minor
+        run.estimated_cost_minor = settled_cost_minor(
+            reserved=run.estimated_cost_minor,
+            reported=result.estimated_cost_minor,
+            provider=run.provider,
+        )
         run.prompt_versions = result.prompt_versions
         run.result = result.response.model_dump(mode="json")
         run.events = [

@@ -124,7 +124,10 @@ async def build_itinerary_node(
             "events": graph_runtime.event_dicts(),
         }
 
-    if result.estimated_cost_minor > max_cost_minor:
+    total_cost_minor = int(
+        state.get("estimated_cost_minor", 0)
+    ) + result.estimated_cost_minor
+    if total_cost_minor > max_cost_minor:
         graph_runtime.emit("error", status="failed", message="模型成本超过单次任务上限")
         return {
             "status": "failed",
@@ -134,7 +137,7 @@ async def build_itinerary_node(
             "input_tokens": result.input_tokens,
             "output_tokens": result.output_tokens,
             "latency_ms": result.latency_ms,
-            "estimated_cost_minor": result.estimated_cost_minor,
+            "estimated_cost_minor": total_cost_minor,
             "model_name": result.model_name,
             "provider_name": result.provider_name,
             "prompt_versions": [
@@ -161,7 +164,7 @@ async def build_itinerary_node(
         "input_tokens": int(state.get("input_tokens", 0)) + result.input_tokens,
         "output_tokens": int(state.get("output_tokens", 0)) + result.output_tokens,
         "latency_ms": int(state.get("latency_ms", 0)) + result.latency_ms,
-        "estimated_cost_minor": result.estimated_cost_minor,
+        "estimated_cost_minor": total_cost_minor,
         "model_name": result.model_name,
         "provider_name": result.provider_name,
         "prompt_versions": [

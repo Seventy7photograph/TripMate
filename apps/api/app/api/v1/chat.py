@@ -4,7 +4,7 @@
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.agents.travel_chat import TravelChatAgent
 from app.api.deps import (
@@ -23,6 +23,7 @@ from app.providers.llm.base import (
 from app.providers.llm.factory import LlmConfigurationError, build_llm_provider
 from app.schemas.chat import TravelChatRequest, TravelChatResponse
 from app.services.conversation_service import ConversationNotFoundError
+from app.services.cost_guard import CostLimitExceeded, hash_client_ip
 from app.services.feature_service import FeatureFlagService
 from app.services.model_config_service import ModelConfigError, ModelConfigService
 from app.services.travel_chat_service import TravelChatService
@@ -92,7 +93,7 @@ async def get_travel_chat_service(
             tool_context=runtime.tool_context,
             skill_handlers=runtime.handlers,
         )
-        yield TravelChatService(session, agent)
+        yield TravelChatService(session, agent, settings)
     finally:
         await runtime.close()
 
@@ -106,7 +107,9 @@ TravelChatServiceDep = Annotated[
 @router.post("/respond", response_model=TravelChatResponse)
 async def respond_to_travel_chat(
     payload: TravelChatRequest,
+    request: Request,
     current_user: CurrentUserDep,
+    settings: SettingsDep,
     _chat_feature: ChatFeatureDep,
     _llm_feature: LlmFeatureDep,
     _rate_limit: ChatRateLimitDep,
@@ -114,6 +117,14 @@ async def respond_to_travel_chat(
     upload_service: UploadServiceDep,
 ) -> TravelChatResponse:
     """接收文本或隔离附件，并返回完成路由的旅行响应。"""
+    request_ip_hash = (
+        hash_client_ip(
+            request.client.host,
+            settings.jwt_secret.get_secret_value(),
+        )
+        if request.client is not None
+        else None
+    )
     try:
         upload_context = (
             await upload_service.context_for_message(
@@ -136,6 +147,7 @@ async def respond_to_travel_chat(
             attachment_ids=payload.attachment_ids,
             conversation_id=payload.conversation_id,
             client_today=payload.client_today,
+            request_ip_hash=request_ip_hash,
         )
     except ConversationNotFoundError as exc:
         raise HTTPException(
@@ -168,3 +180,14 @@ async def respond_to_travel_chat(
         ) from exc
     except UploadError as exc:
         raise upload_error(exc) from exc
+    except CostLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "cost_limit_exceeded",
+                "scope": exc.scope,
+                "limit_minor": exc.limit_minor,
+                "spent_minor": exc.spent_minor,
+                "message": "今日成本额度已达到上限",
+            },
+        ) from exc

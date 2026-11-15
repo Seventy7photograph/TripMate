@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     planning_max_tool_calls: int = Field(default=12, ge=1, le=12)
     planning_max_loops: int = Field(default=2, ge=0, le=2)
     planning_max_cost_minor: int = Field(default=1_000, ge=0)
+    travel_chat_max_cost_minor: int = Field(default=1_000, ge=1)
+    brief_parse_max_cost_minor: int = Field(default=500, ge=1)
     skills_root: Path = PROJECT_ROOT / "skills"
     prompts_root: Path = PROJECT_ROOT / "apps" / "api" / "prompts"
     daily_user_cost_limit_minor: int = Field(default=10_000, ge=1)

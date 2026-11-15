@@ -2,6 +2,7 @@
 from uuid import UUID
 
 import httpx
+import pytest
 from pydantic import SecretStr
 from sqlalchemy import select
 
@@ -262,6 +263,98 @@ async def test_planning_job_is_queued_then_executed_by_worker(
 
     completed = await service.run_job(started.id)
     assert completed.status == "completed"
+
+
+async def test_worker_rechecks_primary_planning_features_before_execution(
+    api_client: httpx.AsyncClient,
+) -> None:
+    class RecordingQueue:
+        is_inline = False
+
+        def __init__(self) -> None:
+            self.job_ids = []
+
+        async def enqueue(self, job_id):
+            self.job_ids.append(job_id)
+
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+    owner_id = UUID(str(registration["user"]["id"]))
+    trip = (
+        await api_client.post(
+            "/api/v1/trips",
+            headers=auth_headers(token),
+            json=trip_payload(destination="重庆"),
+        )
+    ).json()
+    service = PlanningService(
+        app.state.test_session,
+        get_settings(),
+        queue=RecordingQueue(),
+    )
+    started = await service.start(
+        owner_id=owner_id,
+        trip_id=UUID(str(trip["id"])),
+        expected_version=1,
+    )
+    flags = FeatureFlagService(app.state.test_session)
+    for key in ("ai_planning", "llm_provider", "map_provider"):
+        await flags.toggle(
+            key=key,
+            enabled=False,
+            actor_id=owner_id,
+            reason="worker recheck regression",
+        )
+
+    failed = await service.run_job(started.id)
+
+    assert failed.status == "failed"
+    assert failed.error_code == "feature_disabled"
+
+
+async def test_queue_failure_releases_planning_cost_reservation(
+    api_client: httpx.AsyncClient,
+) -> None:
+    class FailingQueue:
+        is_inline = False
+
+        async def enqueue(self, job_id):
+            del job_id
+            raise RuntimeError("redis unavailable")
+
+    registration = await register_user(api_client)
+    token = str(registration["access_token"])
+    owner_id = UUID(str(registration["user"]["id"]))
+    trip = (
+        await api_client.post(
+            "/api/v1/trips",
+            headers=auth_headers(token),
+            json=trip_payload(destination="重庆"),
+        )
+    ).json()
+    service = PlanningService(
+        app.state.test_session,
+        get_settings(),
+        queue=FailingQueue(),
+    )
+
+    with pytest.raises(RuntimeError, match="redis unavailable"):
+        await service.start(
+            owner_id=owner_id,
+            trip_id=UUID(str(trip["id"])),
+            expected_version=1,
+        )
+
+    run = await app.state.test_session.scalar(
+        select(AgentRun)
+        .where(AgentRun.created_by == owner_id)
+        .order_by(AgentRun.created_at.desc())
+        .limit(1)
+    )
+    assert run is not None
+    assert run.status == "failed"
+    assert run.error_code == "queue_enqueue_failed"
+    assert run.estimated_cost_minor == 0
 
 
 async def test_disabling_agent_skills_falls_back_without_router(

@@ -137,6 +137,10 @@ async def research_node(
         "input_tokens": int(state.get("input_tokens", 0)) + plan.input_tokens,
         "output_tokens": int(state.get("output_tokens", 0)) + plan.output_tokens,
         "latency_ms": int(state.get("latency_ms", 0)) + plan.latency_ms,
+        "estimated_cost_minor": int(
+            state.get("estimated_cost_minor", 0)
+        )
+        + plan.estimated_cost_minor,
         "model_name": plan.model_name or state.get("model_name", ""),
         "provider_name": plan.provider_name
         or research_planner.provider_name,

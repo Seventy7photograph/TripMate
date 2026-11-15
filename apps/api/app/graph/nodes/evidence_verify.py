@@ -6,6 +6,7 @@ from app.graph.runtime import GraphRuntime
 from app.graph.state import TravelGraphState
 from app.schemas.ai import ItineraryDraftContract, ValidationIssueContract
 from app.services.evidence_validation_service import EvidenceValidationService
+from app.skills.executor import SkillContext
 from app.skills.production import EvidenceVerificationOutput
 from app.skills.runtime import SkillRuntime
 
@@ -31,10 +32,23 @@ async def evidence_verify_node(
     report = EvidenceValidationService().validate(draft, records=records)
     skills_used = [dict(item) for item in state.get("skills_used", [])]
     skill_validation_issues: list[ValidationIssueContract] = []
-    if skill_runtime is not None:
+    evidence_manifest = (
+        None
+        if skill_runtime is None
+        else skill_runtime.selected_manifests.get("evidence-verification")
+    )
+    if skill_runtime is not None and evidence_manifest is not None:
         try:
-            evidence_result = await skill_runtime.execute(
-                "evidence-verification",
+            handler = skill_runtime.handlers.get("evidence-verification")
+            if handler is None:
+                raise LookupError("evidence-verification handler missing")
+            evidence_result = await skill_runtime.executor.execute(
+                evidence_manifest,
+                SkillContext(
+                    tool_registry=skill_runtime.tools,
+                    tool_context=skill_runtime.tool_context,
+                    handler=handler,
+                ),
                 {
                     "records": [
                         record.model_dump(mode="json")

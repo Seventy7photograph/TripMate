@@ -1,5 +1,5 @@
 # 文件说明：Skill 统一运行时：集中组装受控 Tool、handler 与完整性检查。
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
@@ -59,11 +59,19 @@ class SkillRuntime:
     tool_context: ToolContext
     handlers: dict[str, SkillHandler]
     executor: SkillExecutor
+    selected_manifests: dict[str, SkillManifest] = field(default_factory=dict)
     mcp_gateway: McpGateway | None = None
     closeables: tuple[object, ...] = ()
 
     def manifest(self, name: str) -> SkillManifest:
-        return self.registry.get(name)
+        selected = self.selected_manifests.get(name)
+        return selected if selected is not None else self.registry.get(name)
+
+    def selected_manifest(self, name: str) -> SkillManifest:
+        manifest = self.selected_manifests.get(name)
+        if manifest is None:
+            raise LookupError(f"Skill is not enabled for this run: {name}")
+        return manifest
 
     async def execute(
         self,

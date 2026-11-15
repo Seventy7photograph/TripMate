@@ -219,7 +219,7 @@ async def test_weather_skill_writes_evidence_from_real_mcp_result(
             evidence_id=UUID(str(result.output.evidence_ids[0])),
         )
         assert evidence is not None
-        assert evidence.provider == "static-weather"
+        assert evidence.provider == "mcp:weather"
     finally:
         running.should_exit = True
         with suppress(asyncio.CancelledError):

@@ -7,6 +7,8 @@ import httpx
 import pytest
 from sqlalchemy import select
 
+from app.api.deps import get_settings
+from app.core.config import Settings
 from app.main import app
 from app.models.agent_run import AgentRun
 from app.models.tool_call_log import ToolCallLog
@@ -75,6 +77,45 @@ async def test_travel_chat_returns_planning_brief(api_client: httpx.AsyncClient)
     assert run is not None
     assert run.status == "completed"
     assert run.skill_route["intent"] == "plan_trip"
+
+
+async def test_travel_chat_daily_cost_limit_blocks_before_model_call(
+    api_client: httpx.AsyncClient,
+) -> None:
+    registration = await register_user(api_client)
+    owner_id = registration["user"]["id"]
+    settings = Settings(
+        app_env="test",
+        provider_profile="mock",
+        map_provider_profile="mock",
+        daily_user_cost_limit_minor=1,
+    )
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.state.test_session.add(
+        AgentRun(
+            created_by=owner_id,
+            trip_id=None,
+            status="completed",
+            progress=100,
+            purpose="travel_chat",
+            provider="mock",
+            model_name="mock",
+            estimated_cost_minor=10,
+            events=[],
+        )
+    )
+    await app.state.test_session.commit()
+    try:
+        response = await api_client.post(
+            "/api/v1/chat/respond",
+            headers=auth_headers(str(registration["access_token"])),
+            json={"message": "重庆冬天怎么穿？", "history": []},
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 429
+    assert response.json()["detail"]["code"] == "cost_limit_exceeded"
 
 
 async def test_travel_chat_returns_structured_transport_strategy(

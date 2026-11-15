@@ -1,7 +1,7 @@
 # 文件说明：FastAPI 路由：briefs。
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.agents.requirement_parser import RequirementParseError
 from app.api.deps import (
@@ -20,6 +20,7 @@ from app.providers.llm.base import (
 from app.providers.llm.factory import LlmConfigurationError, build_llm_provider
 from app.schemas.requirement import RequirementParseRequest, RequirementParseResponse
 from app.services.brief_service import BriefService
+from app.services.cost_guard import CostLimitExceeded, hash_client_ip
 from app.services.model_config_service import ModelConfigError, ModelConfigService
 from app.services.upload_service import UploadError
 
@@ -46,6 +47,7 @@ async def get_brief_service(
     return BriefService(
         session,
         provider,
+        settings,
         max_repairs=stage_settings.llm_max_repairs,
     )
 
@@ -67,13 +69,23 @@ BriefRateLimitDep = Annotated[
 @router.post("/parse", response_model=RequirementParseResponse)
 async def parse_requirement(
     payload: RequirementParseRequest,
+    request: Request,
     current_user: CurrentUserDep,
+    settings: SettingsDep,
     _brief_feature: BriefFeatureDep,
     _llm_feature: LlmFeatureDep,
     _rate_limit: BriefRateLimitDep,
     service: BriefServiceDep,
     upload_service: UploadServiceDep,
 ) -> RequirementParseResponse:
+    request_ip_hash = (
+        hash_client_ip(
+            request.client.host,
+            settings.jwt_secret.get_secret_value(),
+        )
+        if request.client is not None
+        else None
+    )
     try:
         upload_context = (
             await upload_service.context_for_message(
@@ -92,6 +104,7 @@ async def parse_requirement(
                 if upload_context is None
                 else tuple(upload_context.image_data_urls)
             ),
+            request_ip_hash=request_ip_hash,
         )
     except LlmTimeoutError as exc:
         raise HTTPException(
@@ -127,4 +140,15 @@ async def parse_requirement(
         ) from exc
     except UploadError as exc:
         raise upload_error(exc) from exc
+    except CostLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "cost_limit_exceeded",
+                "scope": exc.scope,
+                "limit_minor": exc.limit_minor,
+                "spent_minor": exc.spent_minor,
+                "message": "今日成本额度已达到上限",
+            },
+        ) from exc
     return result.response

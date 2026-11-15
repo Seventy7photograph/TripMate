@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.travel_chat import TravelChatAgent, TravelChatResult
+from app.core.config import Settings
 from app.models.agent_run import AgentRun
 from app.models.conversation import Conversation as ConversationModel
 from app.models.tool_call_log import ToolCallLog
@@ -21,13 +22,21 @@ from app.repositories.conversation_repository import ConversationRepository
 from app.schemas.chat import ChatHistoryTurn, TravelChatResponse
 from app.schemas.planning_draft import PlanningDraft
 from app.services.conversation_service import ConversationNotFoundError
+from app.services.cost_guard import CostGuard, settled_cost_minor
 from app.services.provider_health_service import ProviderHealthService
 
 
 class TravelChatService:
-    def __init__(self, session: AsyncSession, agent: TravelChatAgent) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        agent: TravelChatAgent,
+        settings: Settings,
+    ) -> None:
         self._session = session
         self._agent = agent
+        self._settings = settings
+        self._costs = CostGuard(session, settings)
 
     async def respond(
         self,
@@ -40,6 +49,7 @@ class TravelChatService:
         attachment_ids: list[UUID] | None = None,
         conversation_id: UUID | None = None,
         client_today: date | None = None,
+        request_ip_hash: str | None = None,
     ) -> TravelChatResponse:
         planning_draft: PlanningDraft | None = None
         effective_history = history
@@ -64,14 +74,22 @@ class TravelChatService:
                     conversation.planning_draft
                 )
         effective_today = effective_client_today(client_today)
+        await self._costs.check(
+            owner_id=owner_id,
+            provider=self._agent.provider_name,
+            request_ip_hash=request_ip_hash,
+            requested_cost_minor=self._settings.travel_chat_max_cost_minor,
+        )
         run = AgentRun(
             trip_id=None,
             created_by=owner_id,
+            request_ip_hash=request_ip_hash,
             status="running",
             progress=25,
             purpose="travel_chat",
             provider=self._agent.provider_name,
             model_name=self._agent.model_name,
+            estimated_cost_minor=self._settings.travel_chat_max_cost_minor,
             events=[
                 {
                     "sequence": 1,
@@ -85,6 +103,8 @@ class TravelChatService:
         self._session.add(run)
         await self._session.flush()
         await self._session.refresh(run)
+        # Reserve budget before the external call; the next request sees this run.
+        await self._session.commit()
         try:
             result = await self._agent.respond(
                 owner_id=owner_id,
@@ -117,7 +137,11 @@ class TravelChatService:
         run.input_tokens = result.usage.input_tokens
         run.output_tokens = result.usage.output_tokens
         run.latency_ms = result.usage.latency_ms
-        run.estimated_cost_minor = result.usage.estimated_cost_minor
+        run.estimated_cost_minor = settled_cost_minor(
+            reserved=run.estimated_cost_minor,
+            reported=result.usage.estimated_cost_minor,
+            provider=run.provider,
+        )
         run.tool_call_count = (
             len(result.tool_audits)
             + result.usage.search_count

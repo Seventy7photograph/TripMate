@@ -129,6 +129,7 @@ class PromptedResearchPlanner(MockResearchPlanner):
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
             latency_ms=result.latency_ms,
+            estimated_cost_minor=13,
             model_name=result.model_name,
             provider_name=result.provider_name,
             prompt_versions=[
@@ -154,6 +155,7 @@ class PromptedComposer(MockItineraryComposer):
             latency_ms=result.latency_ms,
             model_name=result.model_name,
             provider_name=result.provider_name,
+            estimated_cost_minor=7,
             prompt_versions=[
                 {
                     "agent": "itinerary-composer",
@@ -255,6 +257,7 @@ async def test_travel_graph_merges_prompt_usage_from_agents() -> None:
     )
 
     assert outcome.status == "completed"
+    assert outcome.estimated_cost_minor == 20
     assert outcome.prompt_versions == [
         {
             "agent": "research-planner",

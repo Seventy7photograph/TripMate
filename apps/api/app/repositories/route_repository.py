@@ -111,6 +111,8 @@ def route_coordinate_hash(
     destination_longitude: float,
     destination_latitude: float,
     destination_coordinate_system: str,
+    city: str | None = None,
+    provider: str | None = None,
 ) -> str:
     payload = {
         "origin": {
@@ -123,6 +125,8 @@ def route_coordinate_hash(
             "latitude": round(destination_latitude, 6),
             "coordinate_system": destination_coordinate_system,
         },
+        "city": city or "",
+        "provider": provider or "",
     }
     encoded = json.dumps(
         payload,

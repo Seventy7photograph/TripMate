@@ -9,8 +9,9 @@ from app.evidence.models import EvidenceFreshness
 from app.mcp.gateway import McpGateway
 from app.tools.context import ToolContext
 from app.tools.evidence import write_evidence
-from app.tools.place_tools import SearchPlacesOutput
+from app.tools.place_tools import SearchPlacesInput, SearchPlacesOutput
 from app.tools.weather_tools import (
+    GetWeatherInput,
     WeatherSnapshotOutput,
     WeatherToolOutput,
 )
@@ -25,13 +26,38 @@ class McpPlaceTool:
         context: ToolContext,
         payload: BaseModel,
     ) -> BaseModel:
+        request = SearchPlacesInput.model_validate(payload)
         result = await self._gateway.call_tool(
             context,
             "amap",
             "search_places",
-            payload.model_dump(mode="json"),
+            request.model_dump(mode="json"),
         )
-        return SearchPlacesOutput.model_validate(result.data)
+        validated = SearchPlacesOutput.model_validate(result.data)
+        if result.fallback_used:
+            return validated
+        queried_at = datetime.now(UTC)
+        return SearchPlacesOutput(
+            results=[
+                place.model_copy(
+                    update={
+                        "source": place.source.model_copy(
+                            update={
+                                "provider": "mcp:amap",
+                                "source_url": None,
+                                "queried_at": queried_at,
+                                "freshness": "unknown",
+                                "confidence": min(
+                                    place.source.confidence,
+                                    0.5,
+                                ),
+                            }
+                        )
+                    }
+                )
+                for place in validated.results
+            ]
+        )
 
 
 class McpWeatherTool:
@@ -43,15 +69,23 @@ class McpWeatherTool:
         context: ToolContext,
         payload: BaseModel,
     ) -> BaseModel:
+        request = GetWeatherInput.model_validate(payload)
         result = await self._gateway.call_tool(
             context,
             "weather",
             "get_weather",
-            payload.model_dump(mode="json"),
+            request.model_dump(mode="json"),
         )
         if "evidence_id" in result.data:
             return WeatherToolOutput.model_validate(result.data)
-        snapshot = WeatherSnapshotOutput.model_validate(result.data)
+        snapshot = WeatherSnapshotOutput.model_validate(result.data).model_copy(
+            update={
+                "provider": "mcp:weather",
+                "city": request.city,
+                "date": request.date,
+                "freshness": "unknown",
+            }
+        )
         evidence_id = await write_evidence(
             context,
             EvidenceDraft(

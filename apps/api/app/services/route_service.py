@@ -120,6 +120,8 @@ class RouteService:
                 destination_coordinate_system=(
                     destination.location.coordinate_system
                 ),
+                city=city,
+                provider=self._provider.name,
             )
             try:
                 cached = await self._routes.get_cached(

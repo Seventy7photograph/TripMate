@@ -22,6 +22,7 @@ class ResearchPlanResult:
     input_tokens: int = 0
     output_tokens: int = 0
     latency_ms: int = 0
+    estimated_cost_minor: int = 0
     model_name: str = ""
     provider_name: str = ""
     prompt_versions: list[dict[str, str]] = field(default_factory=list)
@@ -141,6 +142,7 @@ class LlmResearchPlanner:
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
             latency_ms=response.usage.latency_ms,
+            estimated_cost_minor=response.usage.estimated_cost_minor,
             model_name=response.usage.model_name or self.model_name,
             provider_name=self.provider_name,
             prompt_versions=[self._prompt.audit_record()],

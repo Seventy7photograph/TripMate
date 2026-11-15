@@ -244,8 +244,9 @@ class TravelChatAgent:
                 confidence=0.99,
             )
             prompt_versions: list[dict[str, str]] = []
+            routing_usage = LlmUsage(model_name=self._provider.model_name)
         else:
-            decision, prompt_versions = await self._route_intent(
+            decision, prompt_versions, routing_usage = await self._route_intent(
                 message=message,
                 history=history,
                 planning_draft=planning_draft,
@@ -298,7 +299,7 @@ class TravelChatAgent:
             )
             return TravelChatResult(
                 response=response,
-                usage=LlmUsage(model_name=self._provider.model_name),
+                usage=routing_usage,
                 skills_used=[],
                 tool_audits=[],
                 skill_route=decision.model_dump(mode="json"),
@@ -326,6 +327,7 @@ class TravelChatAgent:
                 planning_draft=planning_draft,
                 date_resolution=date_resolution,
                 today=effective_today,
+                routing_usage=routing_usage,
             )
 
         return await self._answer_travel_question(
@@ -335,6 +337,7 @@ class TravelChatAgent:
             decision=decision,
             prompt_versions=prompt_versions,
             routing_skill_used=routing_skill_used,
+            routing_usage=routing_usage,
         )
 
     async def _execute_routing_skill(
@@ -376,10 +379,14 @@ class TravelChatAgent:
         history: list[ChatHistoryTurn],
         planning_draft: PlanningDraft | None,
         today: date,
-    ) -> tuple[TravelIntentDecision, list[dict[str, str]]]:
+    ) -> tuple[TravelIntentDecision, list[dict[str, str]], LlmUsage]:
         """请求模型给出紧凑路由结果；失败时使用安全兜底。"""
         if self._provider.provider_name == "mock":
-            return _heuristic_intent(message), []
+            return (
+                _heuristic_intent(message),
+                [],
+                LlmUsage(model_name=self._provider.model_name),
+            )
         skill_metadata: list[dict[str, object]] = [
             {
                 "name": skill.name,
@@ -407,14 +414,22 @@ class TravelChatAgent:
             ),
             max_tokens=1_000,
         )
+        usage = LlmUsage(model_name=self._provider.model_name)
         try:
             completion = await self._provider.generate(request)
+            usage = completion.usage
             raw = json.loads(completion.content)
-            return TravelIntentDecision.model_validate(raw), [
-                self._intent_prompt.audit_record()
-            ]
+            return (
+                TravelIntentDecision.model_validate(raw),
+                [self._intent_prompt.audit_record()],
+                completion.usage,
+            )
         except (LlmProviderError, ValueError, ValidationError):
-            return _heuristic_intent(message), [self._intent_prompt.audit_record()]
+            return (
+                _heuristic_intent(message),
+                [self._intent_prompt.audit_record()],
+                usage,
+            )
 
     async def _plan_response(
         self,
@@ -431,6 +446,7 @@ class TravelChatAgent:
         planning_draft: PlanningDraft | None,
         date_resolution: DateResolution,
         today: date,
+        routing_usage: LlmUsage,
     ) -> TravelChatResult:
         skills_used = (
             [routing_skill_used] if routing_skill_used is not None else []
@@ -546,10 +562,12 @@ class TravelChatAgent:
         tool_audits = self._tool_context.runner.audits[audit_start:]
         return TravelChatResult(
             response=response,
-            usage=LlmUsage(
+            usage=routing_usage
+            + LlmUsage(
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
                 latency_ms=result.latency_ms,
+                estimated_cost_minor=result.estimated_cost_minor,
                 model_name=result.model_name,
             ),
             skills_used=skills_used,
@@ -570,6 +588,7 @@ class TravelChatAgent:
         decision: TravelIntentDecision,
         prompt_versions: list[dict[str, str]],
         routing_skill_used: dict[str, object] | None,
+        routing_usage: LlmUsage,
     ) -> TravelChatResult:
         """只执行选中的只读 Tool，再由 DeepSeek 决定是否搜索或读取网页。"""
         tool_context_text = ""
@@ -758,7 +777,7 @@ class TravelChatAgent:
         )
         return TravelChatResult(
             response=response,
-            usage=usage,
+            usage=routing_usage + usage,
             skills_used=skills_used,
             tool_audits=list(self._tool_context.runner.audits[audit_start:]),
             skill_route=decision.model_dump(mode="json"),

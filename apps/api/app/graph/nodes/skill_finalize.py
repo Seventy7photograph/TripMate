@@ -74,7 +74,11 @@ async def skill_finalize_node(
             message=f"正在基于草案执行 Skill：{skill_name}",
         )
         try:
-            manifest = skill_runtime.manifest(skill_name)
+            manifest = skill_runtime.selected_manifest(skill_name)
+        except LookupError:
+            skill_errors[skill_name] = "LookupError:skill_disabled"
+            continue
+        try:
             scoped_context = replace(
                 skill_runtime.tool_context,
                 runner=skill_runtime.tool_context.runner.scoped(
@@ -101,7 +105,6 @@ async def skill_finalize_node(
                 max_tokens=remaining_tokens,
             )
         except Exception as exc:
-            manifest = skill_runtime.manifest(skill_name)
             fallback = str(
                 getattr(exc, "fallback", manifest.fallback)
             )

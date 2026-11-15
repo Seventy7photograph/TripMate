@@ -4,6 +4,7 @@ from pathlib import Path
 import httpx
 from sqlalchemy import select
 
+from app.api.deps import get_settings
 from app.api.v1.briefs import get_brief_service
 from app.main import app
 from app.models.agent_run import AgentRun
@@ -61,7 +62,11 @@ async def parse_with_provider(
     token = str(registration["access_token"])
 
     async def service_override() -> BriefService:
-        return BriefService(app.state.test_session, provider)
+        return BriefService(
+            app.state.test_session,
+            provider,
+            get_settings(),
+        )
 
     app.dependency_overrides[get_brief_service] = service_override
     try:
@@ -88,6 +93,14 @@ async def test_malformed_json_is_repaired_once(api_client: httpx.AsyncClient) ->
     assert response.json()["brief"]["destination"] == "重庆"
     assert provider.call_count == 2
     assert "上一次输出未通过校验" in provider.requests[1].user_prompt
+    run = await app.state.test_session.scalar(
+        select(AgentRun)
+        .where(AgentRun.purpose == "brief_parse")
+        .order_by(AgentRun.created_at.desc())
+        .limit(1)
+    )
+    assert run is not None
+    assert run.estimated_cost_minor == get_settings().brief_parse_max_cost_minor
 
 
 async def test_invalid_date_range_is_repaired(api_client: httpx.AsyncClient) -> None:
@@ -153,7 +166,11 @@ async def test_timeout_returns_gateway_timeout(api_client: httpx.AsyncClient) ->
     token = str(registration["access_token"])
 
     async def service_override() -> BriefService:
-        return BriefService(app.state.test_session, TimeoutProvider())
+        return BriefService(
+            app.state.test_session,
+            TimeoutProvider(),
+            get_settings(),
+        )
 
     app.dependency_overrides[get_brief_service] = service_override
     try:

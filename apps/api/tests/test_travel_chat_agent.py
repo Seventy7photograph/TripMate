@@ -59,13 +59,20 @@ class ScriptedTravelProvider:
                         "deep_research": True,
                     }
                 ),
-                usage=LlmUsage(model_name=self.model_name),
+                usage=LlmUsage(
+                    input_tokens=10,
+                    output_tokens=5,
+                    latency_ms=3,
+                    estimated_cost_minor=7,
+                    model_name=self.model_name,
+                ),
             )
         return LlmResponse(
             content="开元寺是泉州古城的重要古建。",
             usage=LlmUsage(
                 input_tokens=50,
                 output_tokens=20,
+                estimated_cost_minor=11,
                 search_count=1,
                 fetch_count=1,
                 model_name=self.model_name,
@@ -77,6 +84,21 @@ class ScriptedTravelProvider:
                 ),
             ),
         )
+
+
+class InvalidRoutingTravelProvider(ScriptedTravelProvider):
+    async def generate(self, request: LlmRequest) -> LlmResponse:
+        if request.metadata.get("operation") == "travel_intent":
+            return LlmResponse(
+                content="not-json",
+                usage=LlmUsage(
+                    input_tokens=4,
+                    output_tokens=2,
+                    estimated_cost_minor=7,
+                    model_name=self.model_name,
+                ),
+            )
+        return await super().generate(request)
 
 
 class MisclassifyingTravelProvider:
@@ -370,6 +392,22 @@ async def test_travel_chat_answers_destination_question_with_sources() -> None:
     assert provider.requests[1].thinking_enabled is True
     assert provider.requests[1].json_mode is False
     assert provider.requests[1].max_tokens == 24_000
+    assert result.usage.input_tokens == 60
+    assert result.usage.output_tokens == 25
+    assert result.usage.latency_ms == 3
+    assert result.usage.estimated_cost_minor == 18
+
+
+async def test_invalid_routing_output_keeps_consumed_usage() -> None:
+    result = await agent(InvalidRoutingTravelProvider()).respond(
+        owner_id=uuid4(),
+        message="重庆冬天怎么穿？",
+        history=[],
+    )
+
+    assert result.usage.input_tokens == 4
+    assert result.usage.output_tokens == 2
+    assert result.usage.estimated_cost_minor == 7
 
 
 async def test_travel_chat_returns_planning_brief_for_complete_request() -> None:

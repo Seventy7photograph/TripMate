@@ -22,6 +22,7 @@ class RouteToolInput:
     origin: GeoPoint
     destination: GeoPoint
     mode: RouteMode
+    city: str | None = None
 
 
 class RoutePointInput(BaseModel):
@@ -85,6 +86,7 @@ class RouteTool:
 
     async def get(self, request: RouteToolInput) -> RouteToolOutput:
         cache_key = (
+            self._provider.name,
             request.origin.longitude,
             request.origin.latitude,
             request.origin.coordinate_system,
@@ -92,6 +94,7 @@ class RouteTool:
             request.destination.latitude,
             request.destination.coordinate_system,
             request.mode,
+            request.city,
         )
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -108,6 +111,7 @@ class RouteTool:
                 coordinate_system=request.destination.coordinate_system,
             ),
             mode=request.mode,
+            city=request.city,
         )
         result = await self.invoke(self._context, payload)
         output = RouteToolOutput.model_validate(result)

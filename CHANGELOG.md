@@ -33,6 +33,10 @@ TripMate 使用语义化版本。格式参考 Keep a Changelog。
 - 上传、附件、Tool、Skill、MCP 和历史消息继续按不可信输入分层隔离。
 - Skill 启停、版本、预算、Tool/MCP 白名单和输出 Schema 在运行时校验。
 - JWT 撤销、资源归属、管理员权限、限流和数据库版本锁回归通过。
+- Chat、需求解析和规划统一执行调用前成本准入与额度预留，未知 Live 价格不会释放日预算。
+- 规划 Worker 在 checkpoint 恢复和实际执行前复检功能开关，并绑定管理员选择的 Skill 版本。
+- MCP 地点与天气事实重绑定到可信 connector 命名空间，不信任远端自报 provider、日期或 freshness。
+- 备份恢复在 `pg_restore` 前验证数据库 dump 大小与 SHA-256；路线缓存键包含城市和 Provider。
 
 ## [1.0.0] - 2026-11-15
 

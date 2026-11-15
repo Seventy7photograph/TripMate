@@ -25,6 +25,7 @@ class GetRouteMatrixInput(BaseModel):
 
     place_ids: list[str] = Field(min_length=2, max_length=12)
     mode: RouteMode
+    city: str | None = Field(default=None, max_length=100)
 
 
 class RouteMatrixPair(BaseModel):
@@ -67,14 +68,19 @@ class MatrixTool:
         self._resolver = resolver
         self._route_tool = route_tool
         self._context = context
-        self._evidence_ids: dict[tuple[str, str, str], UUID] = {}
+        self._evidence_ids: dict[tuple[str, str, str, str], UUID] = {}
 
     async def get_route_matrix(
         self,
         place_ids: list[str],
         mode: RouteMode,
+        city: str | None = None,
     ) -> RouteMatrixOutput:
-        request = GetRouteMatrixInput(place_ids=place_ids, mode=mode)
+        request = GetRouteMatrixInput(
+            place_ids=place_ids,
+            mode=mode,
+            city=city,
+        )
         return await self._matrix(self._context, request)
 
     async def invoke(
@@ -134,9 +140,15 @@ class MatrixTool:
                     origin=origin_location,
                     destination=destination_location,
                     mode=request.mode,
+                    city=request.city,
                 )
             )
-            evidence_key = (origin_id, destination_id, request.mode)
+            evidence_key = (
+                origin_id,
+                destination_id,
+                request.mode,
+                request.city or "",
+            )
             evidence_id = self._evidence_ids.get(evidence_key)
             if evidence_id is None:
                 evidence_id = await write_evidence(
@@ -145,6 +157,7 @@ class MatrixTool:
                         fact_type="transport",
                         provider=result.source.provider,
                         provider_record_id=(
+                            f"{self._resolver.name}:{request.city or ''}:"
                             f"{origin_id}:{destination_id}:{request.mode}"
                         ),
                         source_url=result.source.source_url,
